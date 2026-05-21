@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import unittest
 from pathlib import Path
 
+from honeypot_ai.models import Event
 from honeypot_ai.parsers import parse_file
 from honeypot_ai.report import analyze_events, report_to_markdown
 
@@ -49,6 +51,25 @@ class AnalysisTests(unittest.TestCase):
         self.assertIn("zeek", actor.sources)
         self.assertIn("T1105", actor.techniques)
         self.assertEqual(report.actors[1].ip, "203.0.113.70")
+
+    def test_actor_correlation_handles_events_without_timestamps(self) -> None:
+        report = analyze_events(
+            [
+                Event(
+                    source="cowrie",
+                    event_type="cowrie.login.failed",
+                    timestamp=datetime(2026, 5, 20, tzinfo=timezone.utc),
+                    src_ip="198.51.100.10",
+                ),
+                Event(
+                    source="cowrie",
+                    event_type="cowrie.login.failed",
+                    src_ip="198.51.100.11",
+                ),
+            ]
+        )
+
+        self.assertEqual(len(report.actors), 2)
 
 
 if __name__ == "__main__":

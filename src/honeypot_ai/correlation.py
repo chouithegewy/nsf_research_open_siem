@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 from collections import OrderedDict, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable
 
 from honeypot_ai.mitre import map_event
@@ -13,6 +13,7 @@ DOCUMENTATION_NETS = tuple(
     ipaddress.ip_network(network)
     for network in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")
 )
+UTC_MIN = datetime.min.replace(tzinfo=timezone.utc)
 
 
 def correlate_actors(events: Iterable[Event], findings: Iterable[RiskFinding]) -> list[ActorProfile]:
@@ -40,7 +41,7 @@ def correlate_actors(events: Iterable[Event], findings: Iterable[RiskFinding]) -
             actor.finding_score,
             len(actor.sources),
             actor.total_events,
-            actor.last_seen or datetime.min,
+            actor.last_seen or UTC_MIN,
         ),
         reverse=True,
     )
