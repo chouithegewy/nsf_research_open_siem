@@ -11,7 +11,11 @@ from honeypot_ai.report import analyze_events, report_to_json, report_to_markdow
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Analyze honeypot and network-security JSON logs.")
     parser.add_argument("paths", nargs="+", help="NDJSON files or directories to analyze")
-    parser.add_argument("--source", choices=("cowrie", "dionaea", "suricata", "zeek", "generic"), help="Override source detection")
+    parser.add_argument(
+        "--source",
+        choices=("cowrie", "dionaea", "suricata", "zeek", "tpot", "generic"),
+        help="Override source detection",
+    )
     parser.add_argument("--format", choices=("markdown", "json", "misp"), default="markdown", help="Output format")
     return parser
 

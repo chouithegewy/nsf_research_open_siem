@@ -2,7 +2,7 @@
 
 This workspace now contains a small, tested prototype for turning honeypot and network-security logs into research-ready signals:
 
-- Parse Cowrie, Dionaea, Suricata EVE JSON, Zeek `conn.log`/`http.log`/`dns.log` JSON, and generic NDJSON.
+- Parse Cowrie, Dionaea, Suricata EVE JSON, Zeek `conn.log`/`http.log`/`dns.log` JSON, generic NDJSON, and T-Pot-normalized JSON for managed honeypot/NSM/tool services.
 - Extract IOCs from structured fields and attacker commands.
 - Aggregate activity into attacker sessions.
 - Correlate actors by IP across sensors, while preserving source/destination roles and IP scope.
@@ -34,6 +34,46 @@ Run tests:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests
+```
+
+## Remote Honeypot Deployment
+
+The first deployment target is a remote Cowrie SSH honeypot with pull-based log
+collection back into this repository:
+
+- Deployment bundle: [deploy/remote-honeypot](deploy/remote-honeypot)
+- Collector: [scripts/collect-remote-cowrie.sh](scripts/collect-remote-cowrie.sh)
+- Raw logs: `logs/raw/cowrie/<host>/` (ignored by git)
+- Generated reports: `logs/reports/` (ignored by git)
+
+After the remote container is running:
+
+```bash
+HONEYPOT_HOST=REMOTE HONEYPOT_USER=user scripts/collect-remote-cowrie.sh
+```
+
+This pulls `cowrie.json` audit events from the remote host and writes a current
+analysis report locally.
+
+## T-Pot CE Integration
+
+T-Pot CE can be used as a multi-honeypot sensor feeding this analyzer:
+
+- Upstream platform: <https://github.com/telekom-security/tpotce>
+- Integration notes: [deploy/tpotce](deploy/tpotce)
+- Collector: [scripts/collect-remote-tpot.sh](scripts/collect-remote-tpot.sh)
+- Raw logs: `logs/raw/tpot/<host>/` (ignored by git)
+
+After T-Pot is running on the remote host:
+
+```bash
+TPOT_HOST=REMOTE TPOT_USER=user scripts/collect-remote-tpot.sh
+```
+
+To analyze an exported T-Pot data directory directly:
+
+```bash
+PYTHONPATH=src python3 -m honeypot_ai analyze --source tpot /path/to/tpotce/data
 ```
 
 ## Research Direction
