@@ -1,0 +1,24 @@
+services:
+  cowrie:
+    image: cowrie/cowrie:${COWRIE_IMAGE_TAG:-latest}
+    container_name: honeypot-cowrie
+    hostname: ${HONEYPOT_SENSOR_NAME:-cowrie-remote}
+    restart: unless-stopped
+    ports:
+      - "${COWRIE_HOST_SSH_PORT:-2222}:2222/tcp"
+      - "${COWRIE_HOST_TELNET_PORT:-2223}:2223/tcp"
+    environment:
+      COWRIE_TELNET_ENABLED: "${COWRIE_TELNET_ENABLED:-no}"
+    volumes:
+      - ./var:/cowrie/cowrie-git/var
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
