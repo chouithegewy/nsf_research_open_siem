@@ -19,3 +19,4 @@ data/tpot_logs_with_rsync_instead/
 data/logs_only/
 deploy/remote-honeypot/.env
 deploy/remote-honeypot/var/
+/data
