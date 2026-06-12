@@ -258,7 +258,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(events[0].source, "snare")
         self.assertEqual(events[0].src_ip, "203.0.113.5")
 
-    def test_tpot_directory_walk_skips_plain_logs(self) -> None:
+    def test_tpot_directory_walk_includes_plain_logs(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "cowrie.json").write_text(
@@ -269,8 +269,32 @@ class ParserTests(unittest.TestCase):
 
             events = parse_paths([root], source_hint="tpot")
 
-        self.assertEqual(len(events), 1)
+        self.assertEqual(len(events), 2)
         self.assertEqual(events[0].source, "cowrie")
+        self.assertEqual(events[1].source, "endlessh")
+        self.assertEqual(events[1].src_ip, "203.0.113.6")
+
+    def test_tpot_directory_walk_includes_csv_and_archives(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            heralding = root / "heralding" / "log"
+            heralding.mkdir(parents=True)
+            (heralding / "auth.csv").write_text(
+                "timestamp,source.ip,source.port,user.name,password\n"
+                "2026-05-16T20:00:02Z,203.0.113.8,4444,root,toor\n",
+                encoding="utf-8",
+            )
+            archive = root / "cowrie" / "downloads.tgz"
+            archive.parent.mkdir()
+            with gzip.open(archive, "wb") as handle:
+                handle.write(b"not a tar archive")
+
+            events = parse_paths([root], source_hint="tpot")
+
+        self.assertEqual(len(events), 2)
+        by_source = {event.source: event for event in events}
+        self.assertEqual(by_source["heralding"].src_ip, "203.0.113.8")
+        self.assertEqual(by_source["cowrie"].event_type, "cowrie.archive")
 
 
 if __name__ == "__main__":

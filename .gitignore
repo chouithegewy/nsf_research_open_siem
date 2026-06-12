@@ -20,3 +20,8 @@ data/logs_only/
 deploy/remote-honeypot/.env
 deploy/remote-honeypot/var/
 /data
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+# rust
+/target

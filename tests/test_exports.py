@@ -7,6 +7,7 @@ from pathlib import Path
 from honeypot_ai.exports import report_to_misp_attributes
 from honeypot_ai.parsers import parse_file
 from honeypot_ai.report import analyze_events
+from honeypot_ai.splunk import report_to_splunk_hec_events, report_to_splunk_ndjson
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,19 @@ class ExportTests(unittest.TestCase):
         self.assertTrue(
             by_value["e4a9b8c7d6f5e4a9b8c7d6f5e4a9b8c7d6f5e4a9b8c7d6f5e4a9b8c7d6f5e4a9"]["to_ids"]
         )
+
+    def test_splunk_hec_export(self) -> None:
+        report = analyze_events(parse_file(ROOT / "sample_logs" / "honeypot.ndjson"))
+        events = report_to_splunk_hec_events(report, index="honeypot")
+
+        self.assertTrue(events)
+        self.assertTrue(all("event" in event for event in events))
+        self.assertIn("index", events[0])
+        self.assertTrue(any(event["event"]["kind"] == "finding" for event in events))
+
+        ndjson = report_to_splunk_ndjson(report, index="honeypot")
+        first = json.loads(ndjson.splitlines()[0])
+        self.assertEqual(first["index"], "honeypot")
 
 
 if __name__ == "__main__":

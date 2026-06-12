@@ -30,6 +30,21 @@ PYTHONPATH=src python3 -m honeypot_ai analyze --format misp sample_logs/honeypot
 
 The MISP-style export keeps private, documentation, and reserved test indicators as `to_ids: false`; real globally routable indicators remain detection-eligible.
 
+Splunk HEC-compatible events:
+
+```bash
+PYTHONPATH=src python3 -m honeypot_ai analyze --format splunk sample_logs/honeypot.ndjson
+```
+
+To send directly to Splunk HTTP Event Collector:
+
+```bash
+SPLUNK_HEC_URL=https://splunk.example:8088 \
+SPLUNK_HEC_TOKEN=TOKEN \
+SPLUNK_INDEX=honeypot \
+PYTHONPATH=src python3 -m honeypot_ai analyze --format splunk sample_logs/honeypot.ndjson
+```
+
 Run tests:
 
 ```bash

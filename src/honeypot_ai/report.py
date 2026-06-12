@@ -84,7 +84,14 @@ def report_to_markdown(report: AnalysisReport) -> str:
 
 
 def report_to_json(report: AnalysisReport) -> str:
-    return json.dumps(_to_jsonable(report), indent=2, sort_keys=True)
+    return json.dumps(report_to_dict(report), indent=2, sort_keys=True)
+
+
+def report_to_dict(report: AnalysisReport) -> dict[str, object]:
+    payload = _to_jsonable(report)
+    if not isinstance(payload, dict):
+        raise TypeError("analysis report did not serialize to a mapping")
+    return payload
 
 
 def _to_jsonable(value: object) -> object:

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import bz2
+import csv
 import gzip
 import json
 import lzma
+import re
+import sqlite3
+import tarfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, TextIO
@@ -95,13 +100,26 @@ TPOT_TYPE_ALIASES = {
 TPOT_TYPES = TPOT_TYPES | set(TPOT_TYPE_ALIASES.values())
 TPOT_MANAGED_TYPES = TPOT_TYPES | set(TPOT_TYPE_ALIASES)
 COMPRESSED_SUFFIXES = {".gz", ".bz2", ".xz"}
-ARCHIVE_SUFFIXES = COMPRESSED_SUFFIXES | {".zip"}
+ARCHIVE_SUFFIXES = COMPRESSED_SUFFIXES | {".zip", ".tar", ".tgz", ".tbz", ".tbz2", ".txz"}
+TEXT_SUFFIXES = {".json", ".jsonl", ".ndjson", ".log", ".txt", ".csv"}
+SQLITE_SUFFIXES = {".sqlite", ".sqlite3", ".db"}
+IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+URL_RE = re.compile(r"https?://[^\s\"'<>]+")
 
 
 def parse_file(path: str | Path, source_hint: str | None = None) -> list[Event]:
     file_path = Path(path)
-    with _open_text(file_path) as handle:
-        return list(parse_ndjson(handle, source_hint=source_hint))
+    if _is_archive(file_path):
+        return list(_parse_archive_metadata(file_path, source_hint=source_hint))
+    if _is_sqlite(file_path):
+        return list(_parse_sqlite(file_path, source_hint=source_hint))
+    if _is_csv(file_path):
+        with _open_text(file_path) as handle:
+            return list(_parse_csv(handle, file_path, source_hint=source_hint))
+    if _is_text_log(file_path):
+        with _open_text(file_path) as handle:
+            return list(_parse_text_events(handle, file_path, source_hint=source_hint))
+    return [_file_metadata_event(file_path, source_hint=source_hint)]
 
 
 def parse_paths(paths: Iterable[str | Path], source_hint: str | None = None) -> list[Event]:
@@ -129,6 +147,54 @@ def parse_ndjson(lines: Iterable[str], source_hint: str | None = None) -> Iterat
         if not isinstance(payload, dict):
             raise ValueError(f"line {line_number} must contain a JSON object")
         yield parse_record(payload, source_hint=source_hint, line_number=line_number)
+
+
+def _parse_text_events(lines: Iterable[str], path: Path, source_hint: str | None = None) -> Iterator[Event]:
+    for line_number, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            yield _parse_plain_text_line(path, stripped, source_hint=source_hint, line_number=line_number)
+            continue
+        if isinstance(payload, dict):
+            yield parse_record(_with_path_metadata(payload, path), source_hint=source_hint, line_number=line_number)
+        else:
+            yield _parse_plain_text_line(path, stripped, source_hint=source_hint, line_number=line_number)
+
+
+def _parse_csv(handle: TextIO, path: Path, source_hint: str | None = None) -> Iterator[Event]:
+    reader = csv.DictReader(handle)
+    for line_number, row in enumerate(reader, start=2):
+        clean = {str(key): value for key, value in row.items() if key is not None}
+        yield parse_record(_with_path_metadata(clean, path), source_hint=source_hint, line_number=line_number)
+
+
+def _parse_sqlite(path: Path, source_hint: str | None = None) -> Iterator[Event]:
+    source = _source_from_path(path, source_hint)
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        yield _file_metadata_event(path, source_hint=source_hint, event_type=f"{source}.sqlite.unreadable")
+        return
+    conn.row_factory = sqlite3.Row
+    try:
+        tables = [
+            row["name"]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+        ]
+        for table in tables:
+            quoted = table.replace('"', '""')
+            for line_number, row in enumerate(conn.execute(f'SELECT * FROM "{quoted}"'), start=1):
+                record = {key: _sqlite_value(row[key]) for key in row.keys()}
+                record.update({"type": source, "sqlite_table": table, "log_path": str(path)})
+                yield parse_record(record, source_hint=source_hint, line_number=line_number)
+    except sqlite3.Error:
+        yield _file_metadata_event(path, source_hint=source_hint, event_type=f"{source}.sqlite.error")
+    finally:
+        conn.close()
 
 
 def parse_record(
@@ -499,6 +565,88 @@ def _parse_generic(record: Mapping[str, Any], line_number: int | None) -> Event:
     )
 
 
+def _parse_plain_text_line(
+    path: Path,
+    line: str,
+    source_hint: str | None = None,
+    line_number: int | None = None,
+) -> Event:
+    source = _source_from_path(path, source_hint)
+    ips = IP_RE.findall(line)
+    timestamp = _parse_timestamp(line.split(maxsplit=1)[0]) if line else None
+    url_match = URL_RE.search(line)
+    record = {
+        "type": source,
+        "message": line,
+        "log_path": str(path),
+        "line_number": line_number,
+    }
+    return Event(
+        source=source,
+        event_type=f"{source}.log",
+        timestamp=timestamp,
+        src_ip=ips[0] if ips else None,
+        dest_ip=ips[1] if len(ips) > 1 else None,
+        command=line,
+        url=url_match.group(0) if url_match else None,
+        filename=str(path),
+        raw=record,
+        line_number=line_number,
+    )
+
+
+def _parse_archive_metadata(path: Path, source_hint: str | None = None) -> Iterator[Event]:
+    source = _source_from_path(path, source_hint)
+    if zipfile.is_zipfile(path):
+        try:
+            with zipfile.ZipFile(path) as archive:
+                for member in archive.infolist():
+                    yield _archive_member_event(path, source, member.filename, member.file_size)
+            return
+        except (OSError, zipfile.BadZipFile):
+            pass
+    if tarfile.is_tarfile(path):
+        try:
+            with tarfile.open(path) as archive:
+                for member in archive.getmembers():
+                    yield _archive_member_event(path, source, member.name, member.size)
+            return
+        except (OSError, tarfile.TarError):
+            pass
+    yield _file_metadata_event(path, source_hint=source_hint, event_type=f"{source}.archive")
+
+
+def _archive_member_event(path: Path, source: str, member_name: str, size: int) -> Event:
+    return Event(
+        source=source,
+        event_type=f"{source}.archive.member",
+        filename=member_name,
+        raw={"archive_path": str(path), "member": member_name, "size": size},
+    )
+
+
+def _file_metadata_event(
+    path: Path,
+    source_hint: str | None = None,
+    event_type: str | None = None,
+) -> Event:
+    source = _source_from_path(path, source_hint)
+    try:
+        stat = path.stat()
+        size = stat.st_size
+        timestamp = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+    except OSError:
+        size = None
+        timestamp = None
+    return Event(
+        source=source,
+        event_type=event_type or f"{source}.file",
+        timestamp=timestamp,
+        filename=str(path),
+        raw={"path": str(path), "size": size},
+    )
+
+
 def _parse_timestamp(value: Any) -> datetime | None:
     if value is None or value == "":
         return None
@@ -554,18 +702,16 @@ def _build_http_url(host: str | None, path: str | None) -> str | None:
 
 
 def _looks_like_log(path: Path, source_hint: str | None = None) -> bool:
-    name = path.name.lower()
-    if path.suffix.lower() in ARCHIVE_SUFFIXES:
-        if path.suffix.lower() == ".zip":
-            return False
-        path = Path(_strip_compression_suffix(name))
-        name = path.name.lower()
-    if name.endswith(".zip"):
-        return False
     if source_hint == "tpot":
-        return path.suffix.lower() in {".json", ".jsonl", ".ndjson"} or ".json." in name or ".ndjson." in name
+        return path.is_file()
+    name = _logical_name(path).lower()
+    suffix = Path(name).suffix.lower()
+    if _is_archive(path) or _is_sqlite(path):
+        return True
+    if source_hint == "tpot":
+        return True
     return (
-        path.suffix.lower() in {".json", ".jsonl", ".ndjson", ".log"}
+        suffix in TEXT_SUFFIXES | SQLITE_SUFFIXES
         or ".json." in name
         or ".ndjson." in name
         or "log" in name
@@ -617,15 +763,77 @@ def _strip_compression_suffix(name: str) -> str:
     return name
 
 
+def _logical_name(path: Path) -> str:
+    name = path.name
+    suffix = path.suffix.lower()
+    if suffix in COMPRESSED_SUFFIXES:
+        return _strip_compression_suffix(name)
+    return name
+
+
+def _is_archive(path: Path) -> bool:
+    name = path.name.lower()
+    logical = _strip_compression_suffix(name)
+    if ".json." in logical or ".ndjson." in logical or ".log." in logical:
+        return False
+    if any(marker in name for marker in (".tgz", ".tar.", ".zip", ".tbz", ".txz")):
+        return True
+    return (
+        name.endswith((".tgz", ".tar.gz", ".tbz", ".tbz2", ".tar.bz2", ".txz", ".tar.xz", ".zip", ".tar"))
+        or (path.suffix.lower() == ".gz" and Path(logical).suffix.lower() not in TEXT_SUFFIXES)
+    )
+
+
+def _is_sqlite(path: Path) -> bool:
+    suffix = Path(_logical_name(path)).suffix.lower()
+    return suffix in SQLITE_SUFFIXES
+
+
+def _is_csv(path: Path) -> bool:
+    return Path(_logical_name(path)).suffix.lower() == ".csv"
+
+
+def _is_text_log(path: Path) -> bool:
+    name = _logical_name(path).lower()
+    suffix = Path(name).suffix.lower()
+    return suffix in TEXT_SUFFIXES or ".json." in name or ".ndjson." in name or "log" in name
+
+
+def _source_from_path(path: Path, source_hint: str | None = None) -> str:
+    if source_hint and source_hint != "tpot":
+        return source_hint
+    for part in reversed(path.parts):
+        normalized = _normalize_tpot_type(part)
+        if normalized in TPOT_MANAGED_TYPES:
+            return TPOT_TYPE_ALIASES.get(normalized, normalized)
+        stem = _normalize_tpot_type(Path(part).stem)
+        if stem in TPOT_MANAGED_TYPES:
+            return TPOT_TYPE_ALIASES.get(stem, stem)
+    return "tpot" if source_hint == "tpot" else "generic"
+
+
+def _with_path_metadata(record: Mapping[str, Any], path: Path) -> dict[str, Any]:
+    enriched = dict(record)
+    enriched.setdefault("type", _source_from_path(path, "tpot"))
+    enriched.setdefault("log_path", str(path))
+    return enriched
+
+
+def _sqlite_value(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return f"<{len(value)} bytes>"
+    return value
+
+
 def _open_text(path: Path) -> TextIO:
     suffix = path.suffix.lower()
     if suffix == ".gz":
-        return gzip.open(path, "rt", encoding="utf-8")
+        return gzip.open(path, "rt", encoding="utf-8", errors="replace")
     if suffix == ".bz2":
-        return bz2.open(path, "rt", encoding="utf-8")
+        return bz2.open(path, "rt", encoding="utf-8", errors="replace")
     if suffix == ".xz":
-        return lzma.open(path, "rt", encoding="utf-8")
-    return path.open("r", encoding="utf-8")
+        return lzma.open(path, "rt", encoding="utf-8", errors="replace")
+    return path.open("r", encoding="utf-8", errors="replace")
 
 
 def _get_field(record: Mapping[str, Any], key: str) -> Any:
