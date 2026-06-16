@@ -23,7 +23,8 @@ Not complete yet:
 
 - IPv6 peer extraction and guaranteed argv capture for very short-lived processes.
 - In-kernel filtering and rate limiting.
-- Root attach smoke testing against the built BPF object in this environment.
+- Remote live attach is deployed but still needs an interactive sudo session or
+  a narrowly scoped root execution path on the research server.
 - Automatic model promotion for adaptive baseline mode.
 
 ## MVP Workflow
@@ -57,6 +58,64 @@ PYTHONPATH=src python3 -m honeypot_ai dataset --source ebpf \
 
 Use the existing web app with a database containing `ebpf_events`; the eBPF raw-event
 view is available at `/ebpf-events`.
+
+## Research Server Deployment
+
+The research server deployment uses the same NetBird-reachable SSH settings as
+the T-Pot collection scripts. Keep host-specific values in `.env`; do not commit
+server addresses, private keys, or copied live output.
+
+Build locally, then copy the release userspace binary, BPF object, and config:
+
+```bash
+bash scripts/build-ebpf-sensor.sh
+
+ssh "$TPOT_USER@$TPOT_HOST" \
+  'mkdir -p ~/nsf_research_ebpf/bin ~/nsf_research_ebpf/bpf ~/nsf_research_ebpf/config ~/nsf_research_ebpf/output ~/nsf_research_ebpf/logs'
+
+rsync -az target/release/honeypot-ebpf \
+  "$TPOT_USER@$TPOT_HOST:~/nsf_research_ebpf/bin/honeypot-ebpf"
+rsync -az crates/ebpf-sensor-ebpf/target/bpfel-unknown-none/release/ebpf-sensor-ebpf \
+  "$TPOT_USER@$TPOT_HOST:~/nsf_research_ebpf/bpf/ebpf-sensor-ebpf"
+rsync -az config/ebpf-sensor.toml \
+  "$TPOT_USER@$TPOT_HOST:~/nsf_research_ebpf/config/ebpf-sensor.toml"
+```
+
+Remote non-root validation:
+
+```bash
+ssh "$TPOT_USER@$TPOT_HOST" 'cd ~/nsf_research_ebpf && \
+  ./bin/honeypot-ebpf check --config config/ebpf-sensor.toml && \
+  ./bin/honeypot-ebpf capture --config config/ebpf-sensor.toml \
+    --probe-object bpf/ebpf-sensor-ebpf \
+    --duration-seconds 1 \
+    --output output/dry-run.ndjson \
+    --dry-run'
+```
+
+Remote live capture requires root or equivalent BPF capabilities because the
+server reports `unprivileged_bpf_disabled=2`:
+
+```bash
+ssh -t "$TPOT_USER@$TPOT_HOST" 'cd ~/nsf_research_ebpf && \
+  sudo ./bin/honeypot-ebpf capture \
+    --config config/ebpf-sensor.toml \
+    --probe-object bpf/ebpf-sensor-ebpf \
+    --duration-seconds 30 \
+    --output output/ebpf-live-smoke.ndjson \
+    --db output/ebpf-live-smoke.duckdb'
+```
+
+Observed on 2026-06-16:
+
+- deployed artifacts under `~/nsf_research_ebpf`;
+- artifact hashes matched the local build;
+- `check` passed with BTF, tracefs, and ring-buffer support present;
+- `capture --dry-run` produced the expected six-probe plan;
+- sample `import` and replay-to-DuckDB stored four events each;
+- non-interactive `sudo -n` was blocked by the server because interactive
+  authentication is required, so live kernel attach still needs an authenticated
+  sudo session or a narrowly scoped sudoers rule for the sensor command.
 
 ## Event Schema
 

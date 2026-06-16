@@ -189,6 +189,14 @@ hardening steps.
 See [docs/ebpf-mvp.md](docs/ebpf-mvp.md) for the MVP boundaries and live probe
 workflow.
 
+The eBPF MVP has also been deployed to the research server under
+`~/nsf_research_ebpf` for remote validation. Non-root readiness, dry-run,
+sample import, and replay-to-DuckDB tests passed there on 2026-06-16. Live
+kernel attach still requires an authenticated sudo session or a narrowly scoped
+sudoers rule because the server disables unprivileged BPF loading. The remote
+runbook and observed results are tracked in
+[docs/ebpf-mvp.md](docs/ebpf-mvp.md#research-server-deployment).
+
 Current implementation and validation notes are tracked in
 [docs/ml-edr-phase.md](docs/ml-edr-phase.md). The recommended path for moving
 from pull-based remote collection to safer near-real-time streaming is tracked
