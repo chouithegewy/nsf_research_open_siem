@@ -1,0 +1,21 @@
+[package]
+name = "ebpf-sensor"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[[bin]]
+name = "honeypot-ebpf"
+path = "src/main.rs"
+
+[features]
+default = []
+live-ebpf = ["dep:aya"]
+
+[dependencies]
+aya = { version = "0.13.1", optional = true }
+chrono = { workspace = true }
+duckdb = { workspace = true }
+ebpf-sensor-common = { path = "../ebpf-sensor-common" }
+serde = { workspace = true }
+serde_json = { workspace = true }

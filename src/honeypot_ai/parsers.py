@@ -203,6 +203,8 @@ def parse_record(
     line_number: int | None = None,
 ) -> Event:
     source = source_hint or detect_source(record)
+    if source == "ebpf":
+        return _parse_ebpf(record, line_number)
     if source == "cowrie":
         return _parse_cowrie(record, line_number)
     if source == "dionaea":
@@ -217,6 +219,8 @@ def parse_record(
 
 
 def detect_source(record: Mapping[str, Any]) -> str:
+    if _is_ebpf_record(record):
+        return "ebpf"
     eventid = str(record.get("eventid", ""))
     if eventid.startswith("cowrie."):
         return "cowrie"
@@ -232,6 +236,39 @@ def detect_source(record: Mapping[str, Any]) -> str:
     if _is_tpot_record(record):
         return "tpot"
     return "generic"
+
+
+def _is_ebpf_record(record: Mapping[str, Any]) -> bool:
+    return (
+        _as_int(record.get("schema_version")) == 1
+        and _as_str(record.get("event_type")) in {"process_exec", "process_exit", "network_connect", "file_access", "privilege_change"}
+    )
+
+
+def _parse_ebpf(record: Mapping[str, Any], line_number: int | None) -> Event:
+    event_type = _as_str(record.get("event_type")) or "event"
+    args = record.get("arguments_sample")
+    if isinstance(args, list):
+        arg_text = " ".join(str(item) for item in args if item is not None)
+    else:
+        arg_text = _as_str(args) or ""
+    binary = _as_str(record.get("binary"))
+    command = " ".join(part for part in (binary, arg_text) if part).strip() or None
+    return Event(
+        source="ebpf",
+        event_type=f"ebpf.{event_type}",
+        timestamp=_parse_timestamp(_first_value(record, ("timestamp", "@timestamp", "time"))),
+        src_ip=_first_string(record, ("src_ip", "source.ip")),
+        src_port=_as_int(_first_value(record, ("src_port", "source.port"))),
+        dest_ip=_first_string(record, ("dest_ip", "destination.ip")),
+        dest_port=_as_int(_first_value(record, ("dest_port", "destination.port"))),
+        protocol=_first_string(record, ("protocol", "network.transport")),
+        session=_first_string(record, ("container_id", "cgroup_id")) or _as_str(record.get("pid")),
+        command=command,
+        filename=_first_string(record, ("filename", "file.path", "path")),
+        raw=record,
+        line_number=line_number,
+    )
 
 
 def _parse_cowrie(record: Mapping[str, Any], line_number: int | None) -> Event:

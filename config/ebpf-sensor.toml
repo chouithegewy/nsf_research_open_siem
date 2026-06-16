@@ -1,0 +1,29 @@
+# Default MVP profile for the Rust eBPF host sensor.
+
+[sensor]
+host = "localhost"
+window_seconds = [1, 60]
+learning_days = 3
+
+[filters]
+watched_prefixes = [
+  "/tmp",
+  "/var/tmp",
+  "/dev/shm",
+  "/etc",
+  "/root/.ssh",
+  "/home",
+  "/var/www",
+  "/usr/local/bin",
+  "/bin",
+  "/usr/bin",
+]
+
+[privacy]
+redact_argument_keys = ["password", "passwd", "token", "secret", "api_key", "apikey", "private_key"]
+
+[learning]
+mode = "guarded"
+exclude_high_signal_windows = true
+target_false_positive_rate = 0.10
+max_alerts_per_day = 50

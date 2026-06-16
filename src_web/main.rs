@@ -97,7 +97,7 @@ impl From<serde_json::Error> for AppError {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenvy::dotenv().ok();
-    let config = Config::from_env();
+    let config = Config::from_env().map_err(std::io::Error::other)?;
     fs::create_dir_all(config.db_path.parent().unwrap_or_else(|| Path::new(".")))?;
     fs::create_dir_all(&config.report_dir)?;
     init_db(&config).map_err(std::io::Error::other)?;
@@ -124,6 +124,8 @@ async fn main() -> std::io::Result<()> {
             .route("/actors", web::get().to(actors))
             .route("/iocs", web::get().to(iocs))
             .route("/sessions", web::get().to(sessions))
+            .route("/ml-alerts", web::get().to(ml_alerts))
+            .route("/ebpf-events", web::get().to(ebpf_events))
             .route("/reports", web::get().to(reports))
             .route("/reports/list", web::get().to(reports_list))
             .route("/reports/{filename}/raw", web::get().to(report_raw))
@@ -146,8 +148,15 @@ async fn main() -> std::io::Result<()> {
 }
 
 impl Config {
-    fn from_env() -> Self {
-        Self {
+    fn from_env() -> AppResult<Self> {
+        let admin_password = env::var("HONEYPOT_WEB_ADMIN_PASSWORD").map_err(|_| {
+            AppError(
+                "HONEYPOT_WEB_ADMIN_PASSWORD is required; copy .env.example to .env and set a local password"
+                    .to_string(),
+            )
+        })?;
+
+        Ok(Self {
             bind: env::var("HONEYPOT_WEB_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
             db_path: env::var("HONEYPOT_WEB_DB")
                 .map(PathBuf::from)
@@ -161,9 +170,8 @@ impl Config {
             session_secret: env::var("HONEYPOT_WEB_SESSION_SECRET")
                 .unwrap_or_else(|_| random_token(48)),
             admin_user: env::var("HONEYPOT_WEB_ADMIN_USER").unwrap_or_else(|_| "admin".to_string()),
-            admin_password: env::var("HONEYPOT_WEB_ADMIN_PASSWORD")
-                .unwrap_or_else(|_| "changeme".to_string()),
-        }
+            admin_password,
+        })
     }
 }
 
@@ -253,11 +261,75 @@ fn init_db(config: &Config) -> AppResult<()> {
             bytes_out BIGINT,
             event_types TEXT
         );
+        CREATE TABLE IF NOT EXISTS ml_models (
+            model_id TEXT PRIMARY KEY,
+            kind TEXT,
+            version TEXT,
+            trained_at TEXT,
+            feature_names TEXT,
+            threshold DOUBLE,
+            training_rows BIGINT,
+            metrics TEXT,
+            artifact_path TEXT
+        );
+        CREATE TABLE IF NOT EXISTS endpoint_windows (
+            id TEXT PRIMARY KEY,
+            model_id TEXT,
+            endpoint TEXT,
+            role TEXT,
+            window_start TEXT,
+            window_end TEXT,
+            features TEXT,
+            label TEXT,
+            label_reasons TEXT,
+            source_event_count BIGINT
+        );
+        CREATE TABLE IF NOT EXISTS ml_alerts (
+            id TEXT PRIMARY KEY,
+            model_id TEXT,
+            endpoint TEXT,
+            role TEXT,
+            window_start TEXT,
+            window_end TEXT,
+            score DOUBLE,
+            threshold DOUBLE,
+            severity TEXT,
+            reasons TEXT,
+            features TEXT,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS ebpf_events (
+            id TEXT PRIMARY KEY,
+            schema_version BIGINT,
+            timestamp TEXT,
+            host TEXT,
+            event_type TEXT,
+            pid BIGINT,
+            ppid BIGINT,
+            uid BIGINT,
+            gid BIGINT,
+            comm TEXT,
+            "binary" TEXT,
+            arguments_sample TEXT,
+            argv_truncated BOOLEAN,
+            cgroup_id TEXT,
+            container_id TEXT,
+            src_ip TEXT,
+            src_port BIGINT,
+            dest_ip TEXT,
+            dest_port BIGINT,
+            protocol TEXT,
+            filename TEXT,
+            access_type TEXT,
+            severity_hint TEXT,
+            raw TEXT
+        );
         "#,
     )?;
     conn.execute_batch(
         r#"
         ALTER TABLE reports ADD COLUMN IF NOT EXISTS report_modified_at TEXT;
+        ALTER TABLE ebpf_events ADD COLUMN IF NOT EXISTS raw TEXT;
         "#,
     )?;
     Ok(())
@@ -403,6 +475,30 @@ async fn sessions(
     let rows = session_rows(&state.config, &query)?;
     let body = sessions_html(&rows, &query);
     Ok(fragment_or_page(&req, "Sessions", &body))
+}
+
+async fn ml_alerts(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    query: web::Query<TableQuery>,
+) -> AppResult<HttpResponse> {
+    require_auth(&state.config, &req)?;
+    refresh_latest_report(&state)?;
+    let rows = ml_alert_rows(&state.config, &query)?;
+    let body = ml_alerts_html(&rows, &query);
+    Ok(fragment_or_page(&req, "ML Alerts", &body))
+}
+
+async fn ebpf_events(
+    state: web::Data<AppState>,
+    req: HttpRequest,
+    query: web::Query<TableQuery>,
+) -> AppResult<HttpResponse> {
+    require_auth(&state.config, &req)?;
+    refresh_latest_report(&state)?;
+    let rows = ebpf_event_rows(&state.config, &query)?;
+    let body = ebpf_events_html(&rows, &query);
+    Ok(fragment_or_page(&req, "eBPF Events", &body))
 }
 
 async fn reports(state: web::Data<AppState>, req: HttpRequest) -> AppResult<HttpResponse> {
@@ -934,6 +1030,10 @@ fn regenerate_export(config: &Config) -> AppResult<()> {
         CREATE TABLE actors AS SELECT * FROM src.actors;
         CREATE TABLE iocs AS SELECT * FROM src.iocs;
         CREATE TABLE sessions AS SELECT * FROM src.analysis_sessions;
+        CREATE TABLE ml_models AS SELECT * FROM src.ml_models;
+        CREATE TABLE endpoint_windows AS SELECT * FROM src.endpoint_windows;
+        CREATE TABLE ml_alerts AS SELECT * FROM src.ml_alerts;
+        CREATE TABLE ebpf_events AS SELECT * FROM src.ebpf_events;
         DETACH src;
         "#,
         source
@@ -943,6 +1043,19 @@ fn regenerate_export(config: &Config) -> AppResult<()> {
 
 fn dashboard_model(config: &Config) -> AppResult<BTreeMap<String, String>> {
     let conn = Connection::open(&config.db_path)?;
+    let ml_alerts: i64 = conn
+        .query_row("SELECT COUNT(*) FROM ml_alerts", [], |row| row.get(0))
+        .unwrap_or(0);
+    let ebpf_events: i64 = conn
+        .query_row("SELECT COUNT(*) FROM ebpf_events", [], |row| row.get(0))
+        .unwrap_or(0);
+    let ebpf_high_signal: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM ebpf_events WHERE severity_hint IN ('medium', 'high', 'critical')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
     let latest: Option<(i64, i64, i64, i64, i64, String)> = conn
         .query_row(
             "SELECT event_count, session_count, finding_count, actor_count, ioc_count, imported_at FROM reports ORDER BY imported_at DESC LIMIT 1",
@@ -957,6 +1070,9 @@ fn dashboard_model(config: &Config) -> AppResult<BTreeMap<String, String>> {
         model.insert("Findings".to_string(), findings.to_string());
         model.insert("Actors".to_string(), actors.to_string());
         model.insert("IOCs".to_string(), iocs.to_string());
+        model.insert("ML Alerts".to_string(), ml_alerts.to_string());
+        model.insert("eBPF Events".to_string(), ebpf_events.to_string());
+        model.insert("eBPF Signals".to_string(), ebpf_high_signal.to_string());
         model.insert("Last import".to_string(), imported_at);
     } else {
         model.insert("Events".to_string(), "0".to_string());
@@ -964,6 +1080,9 @@ fn dashboard_model(config: &Config) -> AppResult<BTreeMap<String, String>> {
         model.insert("Findings".to_string(), "0".to_string());
         model.insert("Actors".to_string(), "0".to_string());
         model.insert("IOCs".to_string(), "0".to_string());
+        model.insert("ML Alerts".to_string(), ml_alerts.to_string());
+        model.insert("eBPF Events".to_string(), ebpf_events.to_string());
+        model.insert("eBPF Signals".to_string(), ebpf_high_signal.to_string());
         model.insert("Last import".to_string(), "never".to_string());
     }
     Ok(model)
@@ -1043,6 +1162,37 @@ fn session_rows(config: &Config, query: &TableQuery) -> AppResult<Vec<Vec<String
          ORDER BY total_events DESC LIMIT ?2",
     )?;
     collect_rows(&mut stmt, params![like, limit(query)], 9)
+}
+
+fn ml_alert_rows(config: &Config, query: &TableQuery) -> AppResult<Vec<Vec<String>>> {
+    let conn = Connection::open(&config.db_path)?;
+    let like = query_like(query);
+    let mut stmt = conn.prepare(
+        "SELECT CAST(severity AS VARCHAR), CAST(score AS VARCHAR), CAST(threshold AS VARCHAR),
+                CAST(endpoint AS VARCHAR), CAST(role AS VARCHAR), CAST(window_start AS VARCHAR),
+                CAST(model_id AS VARCHAR), CAST(reasons AS VARCHAR)
+         FROM ml_alerts
+         WHERE coalesce(endpoint, '') LIKE ?1 OR coalesce(severity, '') LIKE ?1 OR coalesce(model_id, '') LIKE ?1
+         ORDER BY created_at DESC, score DESC LIMIT ?2",
+    )?;
+    collect_rows(&mut stmt, params![like, limit(query)], 8)
+}
+
+fn ebpf_event_rows(config: &Config, query: &TableQuery) -> AppResult<Vec<Vec<String>>> {
+    let conn = Connection::open(&config.db_path)?;
+    let like = query_like(query);
+    let mut stmt = conn.prepare(
+        "SELECT CAST(timestamp AS VARCHAR), CAST(host AS VARCHAR), CAST(event_type AS VARCHAR),
+                CAST(pid AS VARCHAR), CAST(uid AS VARCHAR), CAST(\"binary\" AS VARCHAR),
+                CAST(arguments_sample AS VARCHAR), CAST(dest_ip AS VARCHAR),
+                CAST(filename AS VARCHAR), CAST(access_type AS VARCHAR), CAST(severity_hint AS VARCHAR)
+         FROM ebpf_events
+         WHERE coalesce(host, '') LIKE ?1 OR coalesce(event_type, '') LIKE ?1 OR
+               coalesce(\"binary\", '') LIKE ?1 OR coalesce(filename, '') LIKE ?1 OR
+               coalesce(dest_ip, '') LIKE ?1 OR coalesce(severity_hint, '') LIKE ?1
+         ORDER BY timestamp DESC LIMIT ?2",
+    )?;
+    collect_rows(&mut stmt, params![like, limit(query)], 11)
 }
 
 fn collect_rows<P: duckdb::Params>(
@@ -1258,6 +1408,8 @@ fn nav() -> String {
   <a href="/" class="brand">Honeypot Research</a>
   <nav>
     <a href="/findings">Findings</a>
+    <a href="/ml-alerts">ML Alerts</a>
+    <a href="/ebpf-events">eBPF</a>
     <a href="/actors">Actors</a>
     <a href="/iocs">IOCs</a>
     <a href="/sessions">Sessions</a>
@@ -1487,6 +1639,49 @@ fn sessions_html(rows: &[Vec<String>], query: &TableQuery) -> String {
                 "Successes",
                 "Commands",
                 "Alerts"
+            ],
+            rows
+        )
+    )
+}
+
+fn ml_alerts_html(rows: &[Vec<String>], query: &TableQuery) -> String {
+    format!(
+        "{}<div id=\"table-region\">{}</div>",
+        table_filter("/ml-alerts", query),
+        table(
+            &[
+                "Severity",
+                "Score",
+                "Threshold",
+                "Endpoint",
+                "Role",
+                "Window",
+                "Model",
+                "Reasons",
+            ],
+            rows
+        )
+    )
+}
+
+fn ebpf_events_html(rows: &[Vec<String>], query: &TableQuery) -> String {
+    format!(
+        "{}<div id=\"table-region\">{}</div>",
+        table_filter("/ebpf-events", query),
+        table(
+            &[
+                "Time",
+                "Host",
+                "Type",
+                "PID",
+                "UID",
+                "Binary",
+                "Arguments",
+                "Destination",
+                "File",
+                "Access",
+                "Severity",
             ],
             rows
         )

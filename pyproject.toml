@@ -27,6 +27,12 @@ honeypot-ai-research = { path = ".", editable = true }
 [tool.pixi.tasks]
 test = "python -m unittest discover -s tests"
 analyze-sample = "python -m honeypot_ai analyze sample_logs/honeypot.ndjson"
+dataset-sample = "python -m honeypot_ai dataset sample_logs/honeypot.ndjson --protected-cidr 10.0.5.0/24 --output data/ml/sample-windows.json"
+train-sample = "python -m honeypot_ai train data/ml/sample-windows.json --model-dir data/models/sample"
+score-sample = "python -m honeypot_ai score data/ml/sample-windows.json --model data/models/sample/model.joblib --include-below-threshold --output data/ml/sample-alerts.json"
+evaluate-sample = "python -m honeypot_ai evaluate data/ml/sample-windows.json"
+tune-sample = "python -m honeypot_ai tune data/ml/sample-windows.json"
+ml-loop = "bash scripts/ml-edr-loop.sh"
 notebook = "jupyter lab"
 
 [tool.pixi.dependencies]

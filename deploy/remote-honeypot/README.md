@@ -55,7 +55,7 @@ docker compose up -d
 From another machine, connect to the honeypot port and attempt a test login:
 
 ```bash
-ssh -p 2222 root@REMOTE
+ssh -p 2222 test-user@REMOTE
 ```
 
 Then confirm the JSON audit stream exists on the remote host:
@@ -83,7 +83,7 @@ analysis workstation. A five-minute cron interval is enough for early
 observation:
 
 ```cron
-*/5 * * * * cd /home/d/projects/nsf_research && HONEYPOT_HOST=REMOTE HONEYPOT_USER=user scripts/collect-remote-cowrie.sh >/tmp/honeypot-collect.log 2>&1
+*/5 * * * * cd /path/to/nsf_research && HONEYPOT_HOST=REMOTE HONEYPOT_USER=user scripts/collect-remote-cowrie.sh >/tmp/honeypot-collect.log 2>&1
 ```
 
 ## Operational Notes

@@ -1,0 +1,18 @@
+# Copy to config/endpoint-detection.toml for a local deployment.
+# Keep deployment-specific interface names, CIDRs, and model paths out of git if they are sensitive.
+
+[sensor]
+interface = "eth0"
+window_seconds = 1
+protected_cidrs = ["10.0.5.0/24"]
+
+[model]
+path = "data/models/current/model.joblib"
+threshold = 0.5
+
+[storage]
+duckdb_path = "data/honeypot-web.duckdb"
+alerts_path = "data/ml/live-alerts.json"
+
+[privacy]
+store_payload_bytes = false

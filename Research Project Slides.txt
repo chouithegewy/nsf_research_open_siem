@@ -1,0 +1,62 @@
+Exploring the Integration of Artificial Intelligence and Data Analytics in Threat Detection
+By Nicholas Lee, Agustin Liscano, David Nunes-Childs
+
+Abstract
+Goal of this project: create a streamlined security monitoring and response pipeline, including a SIEM, locally hosted LLM, and a open-source threat intelligence platform.
+Rationale behind project: Regular SIEM’s can create alerts with a large amount of security data without context. Small and medium businesses can not afford full teams of analysts or suites of enterprise software
+Outcome: Have LLM generate analyst-facing summaries that can explain the alert, affected asset, evidence,response action,and recommended next steps
+
+Test Environment
+TPot Honeypot - Hosted on a Google Cloud Virtual Machine, contains multiple honeypots 
+Wazuh SIEM - Locally hosted SIEM,
+MISP - Locally hosted, used to store IOCs(Indicators of Compromise) .
+Locally hosted LLM
+
+Data Flow
+
+Methodology
+Deploy TPot which starts collecting attack data, includes things like ssh attacks, malware attacks, and attacks on a website
+Set up automatic retrieval of logs to feed into SIEM
+Use logs to create IOCs to put into MISP
+Train local LLM off logs and MISP to detect attacks and be able to summarize SIEM alerts
+
+Impact
+Have a more affordable version of a SOAR(Security Orchestration, Automation, and Response) so companies can better protect their assets and be able to take action when compromised.
+
+How we are Accomplishing this - TPot
+TPot is an open source honeypot that contains multiple different honeypots inside it
+When attackers compromise any of the honeypots, TPot logs it inside the virtual machine.
+Set up automation to pull logs from TPot to Wazuh SIEM
+
+How we are Accomplishing this - Wazuh
+
+Open Source SIEM
+Monitors logs pulled from TPot
+Will be tuned to properly detect when an attack is happening, if not tuned will give many false negatives.
+
+How we are Accomplishing this - MISP
+
+Open source platform
+Able to access information about known attackers, malware, and tactics
+This will be used to better detect attacks by feeding this information into the LLM.
+
+How we are Accomplishing this - LLM
+
+After SIEM has generated an attack alert
+LLM will take information from logs and MISP to generate summary report of alert
+Summary will include added context, evidence, and recommended next steps
+
+Machine Learning - Endpoint Detection (In Progress)
+We are building an ML pipeline that turns raw honeypot and network logs into per-endpoint behavior profiles
+Events from Cowrie, Dionaea, Suricata, and Zeek are normalized and grouped into time windows per endpoint (attacker or defended host)
+Each window becomes a feature vector: login failures/successes, commands run, download and reverse-shell attempts, persistence attempts, scanner activity, bytes in/out, unique peers and ports, IDS alerts
+Windows are weak-labeled automatically from known attack signals, giving us a labeled training dataset (exported as CSV/JSON) without hand-labeling every event
+Current baseline: transparent heuristic risk scoring plus dependency-free robust anomaly detection (median absolute deviation), so every flagged endpoint comes with human-readable reasons
+Next step: train and compare classical ML models (e.g., Isolation Forest) against the heuristic baseline using precision/recall on the weak-labeled windows
+
+Machine Learning - Low Latency Network Analysis (Planned)
+Goal: detect attacks as they happen, not after batch log review
+The same feature pipeline supports short windows (down to 1 second) built directly from packet-level data, enabling near-real-time scoring of network behavior
+Lightweight, dependency-free scoring means detection can run on modest hardware alongside the SIEM, fitting the small/medium business budget constraint
+Planned evaluation: detection latency (time from attack activity to alert), alert volume per sensor per day, and false-positive rate on benign traffic
+Detections feed the same downstream path: SIEM alert, MISP IOC enrichment, then LLM-generated analyst summary, so fast detection still produces explainable output
