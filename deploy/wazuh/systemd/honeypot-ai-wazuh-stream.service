@@ -1,0 +1,22 @@
+[Unit]
+Description=Honeypot AI real-time Wazuh alert stream
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/nsf_research
+Environment=PYTHONPATH=/opt/nsf_research/src
+ExecStart=/usr/bin/python3 -m honeypot_ai wazuh-stream \
+  /var/log/tpot/source.ndjson \
+  --source tpot \
+  --output /var/log/honeypot-ai/alerts.ndjson \
+  --state-file /var/lib/honeypot-ai/wazuh-stream.state.json \
+  --poll-seconds 2
+Restart=always
+RestartSec=5
+User=honeypot-ai
+Group=honeypot-ai
+
+[Install]
+WantedBy=multi-user.target

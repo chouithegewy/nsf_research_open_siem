@@ -1,0 +1,80 @@
+{
+  "name": "Honeypot AI Single Pane",
+  "platform": "Wazuh Dashboard / OpenSearch Dashboards",
+  "data_view": "wazuh-alerts-*",
+  "time_field": "timestamp",
+  "refresh_interval_seconds": 5,
+  "base_filter": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\")",
+  "purpose": "Show signature/MISP findings, ML behavior alerts, and eBPF EDR telemetry in the same Wazuh alert workflow.",
+  "panels": [
+    {
+      "id": "alerts_over_time",
+      "title": "Honeypot AI alerts over time",
+      "type": "line",
+      "query": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\")",
+      "fields": ["timestamp"]
+    },
+    {
+      "id": "alerts_by_kind",
+      "title": "Alerts by pipeline",
+      "type": "pie",
+      "query": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\")",
+      "fields": ["data.kind", "kind"]
+    },
+    {
+      "id": "high_confidence_alerts",
+      "title": "High confidence alerts",
+      "type": "metric",
+      "query": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\") and (rule.level >= 10 or data.severity: \"high\" or data.severity_hint: \"high\" or data.priority: \"high\")",
+      "fields": ["rule.level", "data.severity", "data.severity_hint", "data.priority"]
+    },
+    {
+      "id": "misp_matches",
+      "title": "MISP matches",
+      "type": "metric",
+      "query": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\") and (rule.groups: \"honeypot_ai_misp\" or data.rule_name: honeypot_ai_misp*)",
+      "fields": ["rule.groups", "data.rule_name", "data.src_ip", "data.dest_ip", "data.domain", "data.file_hash"]
+    },
+    {
+      "id": "ebpf_event_mix",
+      "title": "eBPF event mix",
+      "type": "table",
+      "query": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\") and (data.kind: \"ebpf_event\" or kind: \"ebpf_event\")",
+      "fields": ["data.event_type", "data.comm", "data.pid", "data.uid", "data.binary", "data.access_type"]
+    },
+    {
+      "id": "recent_events",
+      "title": "Recent Honeypot AI events",
+      "type": "saved_search",
+      "query": "(data.integration: \"honeypot-ai\" or integration: \"honeypot-ai\")",
+      "fields": [
+        "timestamp",
+        "rule.level",
+        "rule.description",
+        "data.kind",
+        "data.rule_name",
+        "data.event_type",
+        "data.src_ip",
+        "data.dest_ip",
+        "data.process_name",
+        "data.comm",
+        "data.ml_score"
+      ]
+    }
+  ],
+  "drilldown_fields": [
+    "agent.name",
+    "manager.name",
+    "rule.id",
+    "rule.level",
+    "rule.description",
+    "rule.groups",
+    "data.finding_id",
+    "data.window_id",
+    "data.pid",
+    "data.uid",
+    "data.binary",
+    "data.dest_ip",
+    "data.dest_port"
+  ]
+}

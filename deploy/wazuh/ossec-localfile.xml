@@ -1,0 +1,7 @@
+<ossec_config>
+  <localfile>
+    <location>/var/log/honeypot-ai/alerts.ndjson</location>
+    <log_format>json</log_format>
+    <label key="integration">honeypot-ai</label>
+  </localfile>
+</ossec_config>

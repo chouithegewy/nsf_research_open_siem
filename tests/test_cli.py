@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from honeypot_ai.cli import main
 from honeypot_ai.endpoint import build_endpoint_windows, write_windows
@@ -36,6 +37,18 @@ class CliTests(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(len(payload["events"]), 17)
 
+    def test_analyze_wazuh_format_outputs_ndjson(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            status = main(["analyze", "--format", "wazuh", str(ROOT / "sample_logs" / "honeypot.ndjson")])
+
+        self.assertEqual(status, 0)
+        lines = stdout.getvalue().splitlines()
+        self.assertTrue(lines)
+        first = json.loads(lines[0])
+        self.assertEqual(first["integration"], "honeypot-ai")
+        self.assertIn(first["kind"], {"event", "finding", "actor", "ioc", "session"})
+
     def test_dataset_subcommand_supports_ebpf_source(self) -> None:
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
@@ -54,6 +67,68 @@ class CliTests(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertTrue(any(window["features"]["ebpf_event_count"] > 0 for window in payload))
         self.assertTrue(any(window["label"] == "malicious" for window in payload))
+
+    def test_misp_push_dry_run_outputs_event_payload(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            status = main(
+                [
+                    "misp-push",
+                    "--dry-run",
+                    "--event-info",
+                    "test honeypot export",
+                    str(ROOT / "sample_logs" / "honeypot.ndjson"),
+                ]
+            )
+
+        self.assertEqual(status, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["Event"]["info"], "test honeypot export")
+        self.assertTrue(payload["Event"]["Attribute"])
+
+    def test_misp_pull_writes_wazuh_lists(self) -> None:
+        class FakeResponse:
+            def __enter__(self) -> "FakeResponse":
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "response": {
+                            "Attribute": [
+                                {"type": "ip-src", "value": "8.8.8.8", "uuid": "ip-uuid", "to_ids": True},
+                                {"type": "domain", "value": "bad.example.net", "uuid": "domain-uuid", "to_ids": True},
+                            ]
+                        }
+                    }
+                ).encode("utf-8")
+
+        with TemporaryDirectory() as tmp:
+            with patch("honeypot_ai.misp.urllib.request.urlopen", return_value=FakeResponse()):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    status = main(
+                        [
+                            "misp-pull",
+                            "--misp-url",
+                            "https://misp.example",
+                            "--misp-key",
+                            "secret-key",
+                            "--output-dir",
+                            tmp,
+                        ]
+                    )
+
+            self.assertEqual(status, 0)
+            self.assertIn("Wrote", stderr.getvalue())
+            self.assertEqual((Path(tmp) / "misp-ip").read_text(encoding="utf-8").strip(), "8.8.8.8:misp:ip-src:ip-uuid")
+            self.assertEqual(
+                (Path(tmp) / "misp-domain").read_text(encoding="utf-8").strip(),
+                "bad.example.net:misp:domain:domain-uuid",
+            )
 
     @unittest.skipUnless(HAS_ML_DEPS, "ML dependencies are not installed")
     def test_evaluate_subcommand_json(self) -> None:

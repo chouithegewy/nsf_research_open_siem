@@ -45,6 +45,26 @@ SPLUNK_INDEX=honeypot \
 PYTHONPATH=src python3 -m honeypot_ai analyze --format splunk sample_logs/honeypot.ndjson
 ```
 
+Wazuh-friendly newline-delimited JSON:
+
+```bash
+PYTHONPATH=src python3 -m honeypot_ai analyze --format wazuh sample_logs/honeypot.ndjson
+```
+
+MISP API handoff and Wazuh CDB list generation are available through
+`misp-push` and `misp-pull`. A Wazuh/OpenSearch saved-object dashboard bundle is
+available under `deploy/wazuh/dashboard` for a single view over signature/MISP
+findings, ML alerts, and eBPF EDR telemetry. Test it locally first with
+`bash scripts/local-wazuh-dashboard-smoke.sh`, or run the near-real-time local
+tailer with `bash scripts/local-wazuh-dashboard-live.sh`, then serve the
+generated preview directory with Python's static file server. See
+[docs/wazuh-misp-integration.md](docs/wazuh-misp-integration.md) and
+[deploy/wazuh](deploy/wazuh).
+
+The planned Splunk-vs-Wazuh research baseline and presentation demo runbook are
+tracked in
+[docs/splunk-wazuh-comparison-demo.md](docs/splunk-wazuh-comparison-demo.md).
+
 Run tests:
 
 ```bash

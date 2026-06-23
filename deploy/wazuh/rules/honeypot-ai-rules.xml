@@ -1,0 +1,77 @@
+<group name="honeypot_ai,">
+  <rule id="110100" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="integration">honeypot-ai</field>
+    <description>Honeypot AI telemetry event</description>
+    <options>no_full_log</options>
+  </rule>
+
+  <rule id="110101" level="10">
+    <if_sid>110100</if_sid>
+    <field name="kind">finding</field>
+    <field name="severity">high|critical</field>
+    <description>Honeypot AI high-severity finding</description>
+    <group>honeypot_ai_finding,</group>
+  </rule>
+
+  <rule id="110102" level="8">
+    <if_sid>110100</if_sid>
+    <field name="kind">ml_alert</field>
+    <field name="severity">high</field>
+    <description>Honeypot AI high-severity ML/EDR alert</description>
+    <group>honeypot_ai_ml,</group>
+  </rule>
+
+  <rule id="110103" level="6">
+    <if_sid>110100</if_sid>
+    <field name="kind">ml_alert</field>
+    <field name="severity">medium</field>
+    <description>Honeypot AI medium-severity ML/EDR alert</description>
+    <group>honeypot_ai_ml,</group>
+  </rule>
+
+  <rule id="110104" level="8">
+    <if_sid>110100</if_sid>
+    <field name="kind">ebpf_event</field>
+    <field name="event_type">privilege_change</field>
+    <description>Honeypot AI eBPF privilege-change event</description>
+    <group>honeypot_ai_ebpf,</group>
+  </rule>
+
+  <rule id="110105" level="8">
+    <if_sid>110100</if_sid>
+    <field name="kind">ebpf_event</field>
+    <field name="access_type">write|create|delete|unlink|rename|chmod|chown</field>
+    <field name="severity_hint">medium|high|critical</field>
+    <description>Honeypot AI eBPF sensitive file access event</description>
+    <group>honeypot_ai_ebpf,</group>
+  </rule>
+
+  <rule id="110110" level="10">
+    <if_sid>110100</if_sid>
+    <list field="src_ip" lookup="address_match_key">etc/lists/misp-ip</list>
+    <description>Honeypot AI source IP matched MISP CDB list</description>
+    <group>honeypot_ai_misp,</group>
+  </rule>
+
+  <rule id="110111" level="10">
+    <if_sid>110100</if_sid>
+    <list field="dest_ip" lookup="address_match_key">etc/lists/misp-ip</list>
+    <description>Honeypot AI destination IP matched MISP CDB list</description>
+    <group>honeypot_ai_misp,</group>
+  </rule>
+
+  <rule id="110112" level="8">
+    <if_sid>110100</if_sid>
+    <list field="domain" lookup="match_key">etc/lists/misp-domain</list>
+    <description>Honeypot AI domain matched MISP CDB list</description>
+    <group>honeypot_ai_misp,</group>
+  </rule>
+
+  <rule id="110113" level="8">
+    <if_sid>110100</if_sid>
+    <list field="indicator" lookup="match_key">etc/lists/misp-hash</list>
+    <description>Honeypot AI indicator matched MISP hash CDB list</description>
+    <group>honeypot_ai_misp,</group>
+  </rule>
+</group>

@@ -27,3 +27,6 @@ deploy/remote-honeypot/var/
 # rust
 /target
 target/
+deploy/wazuh/cdb-lists/generated/
+credentials*
+.antigravitycli/

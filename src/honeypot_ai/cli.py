@@ -19,6 +19,7 @@ from honeypot_ai.ml import (
 from honeypot_ai.parsers import parse_paths
 from honeypot_ai.report import analyze_events, report_to_json, report_to_markdown
 from honeypot_ai.splunk import report_to_splunk_hec_events, report_to_splunk_ndjson, send_to_splunk_hec
+from honeypot_ai.wazuh import ml_alerts_to_wazuh_ndjson, report_to_wazuh_ndjson
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,6 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_evaluate_parser(subparsers.add_parser("evaluate", help="Evaluate endpoint ML scorers with temporal splits"))
     _add_tune_parser(subparsers.add_parser("tune", help="Tune endpoint ML thresholds with train/calibration/test splits"))
     _add_live_sensor_parser(subparsers.add_parser("live-sensor", help="Score live or replayed packet/log traffic"))
+    _add_misp_push_parser(subparsers.add_parser("misp-push", help="Push extracted IOCs into a MISP event"))
+    _add_misp_pull_parser(subparsers.add_parser("misp-pull", help="Pull MISP indicators into Wazuh CDB lists"))
+    _add_wazuh_preview_parser(subparsers.add_parser("wazuh-preview", help="Render a local Wazuh dashboard preview"))
+    _add_wazuh_stream_parser(subparsers.add_parser("wazuh-stream", help="Tail logs into a Wazuh alert stream"))
     return parser
 
 
@@ -62,7 +67,7 @@ def _add_analyze_parser(parser: argparse.ArgumentParser) -> None:
     _add_common_source_args(parser)
     parser.add_argument(
         "--format",
-        choices=("markdown", "json", "misp", "splunk"),
+        choices=("markdown", "json", "misp", "splunk", "wazuh"),
         default="markdown",
         help="Output format",
     )
@@ -153,6 +158,7 @@ def _add_score_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default="data/models/current/model.joblib", help="Saved model artifact")
     parser.add_argument("--threshold", type=float, help="Override saved model threshold")
     parser.add_argument("--include-below-threshold", action="store_true", help="Emit scores for all windows")
+    parser.add_argument("--format", choices=("json", "wazuh"), default="json", help="Alert output format")
     parser.add_argument("--output", "-o", help="Alert JSON output path. Defaults to stdout.")
     parser.add_argument("--db", help="Optional DuckDB path for storing alerts")
 
@@ -239,11 +245,112 @@ def _add_live_sensor_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--limit", type=int, help="Maximum packets/windows to process")
     parser.add_argument("--threshold", type=float, help="Override saved model threshold")
     parser.add_argument("--include-below-threshold", action="store_true", help="Emit scores for all windows")
+    parser.add_argument("--format", choices=("json", "wazuh"), default="json", help="Alert output format")
     parser.add_argument("--output", "-o", help="Alert JSON output path. Defaults to stdout.")
     parser.add_argument("--db", default=os.getenv("HONEYPOT_WEB_DB"), help="DuckDB path for storing alerts")
 
 
-COMMANDS = {"analyze", "dataset", "train", "score", "evaluate", "tune", "live-sensor"}
+def _add_misp_push_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("paths", nargs="+", help="NDJSON files or directories to analyze and export to MISP")
+    _add_common_source_args(parser)
+    parser.add_argument("--misp-url", default=os.getenv("MISP_URL"), help="MISP base URL")
+    parser.add_argument(
+        "--misp-key",
+        default=os.getenv("MISP_API_KEY") or os.getenv("MISP_KEY"),
+        help="MISP automation/API key",
+    )
+    parser.add_argument("--event-info", default="Honeypot AI IOC export", help="MISP event info/title")
+    parser.add_argument("--distribution", default="0", help="MISP event distribution. Defaults to 0.")
+    parser.add_argument("--threat-level-id", default="2", help="MISP threat_level_id. Defaults to 2.")
+    parser.add_argument("--analysis", default="0", help="MISP analysis value. Defaults to 0.")
+    parser.add_argument("--tag", action="append", default=[], help="MISP tag name to attach to the event. Can be repeated.")
+    parser.add_argument("--dry-run", action="store_true", help="Print the MISP event payload instead of sending it")
+
+
+def _add_misp_pull_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--misp-url", default=os.getenv("MISP_URL"), help="MISP base URL")
+    parser.add_argument(
+        "--misp-key",
+        default=os.getenv("MISP_API_KEY") or os.getenv("MISP_KEY"),
+        help="MISP automation/API key",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="deploy/wazuh/cdb-lists/generated",
+        help="Directory for Wazuh CDB list files. Defaults to deploy/wazuh/cdb-lists/generated.",
+    )
+    parser.add_argument("--include-non-ids", action="store_true", help="Include MISP attributes where to_ids is false")
+
+
+def _add_wazuh_preview_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("paths", nargs="+", help="Wazuh-format NDJSON files to preview")
+    parser.add_argument(
+        "--spec",
+        default="deploy/wazuh/dashboard/honeypot-ai-dashboard-spec.json",
+        help="Dashboard spec JSON. Defaults to deploy/wazuh/dashboard/honeypot-ai-dashboard-spec.json.",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="build/wazuh-preview/index.html",
+        help="Preview HTML output path. Defaults to build/wazuh-preview/index.html.",
+    )
+    parser.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=5,
+        help="Browser auto-refresh interval for the preview HTML. Use 0 to disable. Defaults to 5.",
+    )
+
+
+def _add_wazuh_stream_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("paths", nargs="+", help="Raw NDJSON or Wazuh-format NDJSON files to tail")
+    _add_common_source_args(parser)
+    parser.add_argument(
+        "--input-format",
+        choices=("raw", "wazuh"),
+        default="raw",
+        help="Input format. raw parses source logs and emits Wazuh alerts; wazuh passes through validated alerts.",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="build/wazuh-live/alerts.ndjson",
+        help="Wazuh alert stream output path. Defaults to build/wazuh-live/alerts.ndjson.",
+    )
+    parser.add_argument("--state-file", help="Offset state file. Defaults to <output>.state.json.")
+    parser.add_argument("--poll-seconds", type=float, default=2.0, help="Polling interval for continuous mode.")
+    parser.add_argument("--once", action="store_true", help="Process current appended lines once and exit.")
+    parser.add_argument(
+        "--preview-output",
+        help="Optional local dashboard preview HTML to regenerate after each batch.",
+    )
+    parser.add_argument(
+        "--preview-spec",
+        default="deploy/wazuh/dashboard/honeypot-ai-dashboard-spec.json",
+        help="Dashboard spec JSON for preview rendering.",
+    )
+    parser.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=5,
+        help="Browser auto-refresh interval for generated preview HTML. Use 0 to disable. Defaults to 5.",
+    )
+
+
+COMMANDS = {
+    "analyze",
+    "dataset",
+    "train",
+    "score",
+    "evaluate",
+    "tune",
+    "live-sensor",
+    "misp-push",
+    "misp-pull",
+    "wazuh-preview",
+    "wazuh-stream",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -265,6 +372,14 @@ def main(argv: list[str] | None = None) -> int:
         return _tune(args)
     if args.command == "live-sensor":
         return _live_sensor(args)
+    if args.command == "misp-push":
+        return _misp_push(args)
+    if args.command == "misp-pull":
+        return _misp_pull(args)
+    if args.command == "wazuh-preview":
+        return _wazuh_preview(args)
+    if args.command == "wazuh-stream":
+        return _wazuh_stream(args)
     if args.command in {None, "analyze"}:
         if args.command is None:
             parser.print_help()
@@ -308,6 +423,8 @@ def _analyze(args: argparse.Namespace) -> int:
             print(f"Sent {sent} events to Splunk HEC", file=sys.stderr)
         else:
             print(report_to_splunk_ndjson(report, **splunk_options), end="")
+    elif args.format == "wazuh":
+        print(report_to_wazuh_ndjson(report), end="")
     else:
         print(report_to_markdown(report), end="")
     return 0
@@ -393,7 +510,7 @@ def _score(args: argparse.Namespace) -> int:
             threshold=args.threshold,
             include_below_threshold=args.include_below_threshold,
         )
-        output = write_alerts(alerts, args.output)
+        output = _write_alert_output(alerts, args.output, args.format, write_alerts)
         if output is not None:
             print(output, end="")
         if args.db:
@@ -510,7 +627,7 @@ def _live_sensor(args: argparse.Namespace) -> int:
             threshold=args.threshold,
             include_below_threshold=args.include_below_threshold,
         )
-        output = write_alerts(alerts, args.output)
+        output = _write_alert_output(alerts, args.output, args.format, write_alerts)
         if output is not None:
             print(output, end="")
         if args.db:
@@ -523,6 +640,142 @@ def _live_sensor(args: argparse.Namespace) -> int:
         print(f"honeypot-ai live-sensor: {exc}", file=sys.stderr)
         return 2
     return 0
+
+
+def _misp_push(args: argparse.Namespace) -> int:
+    from honeypot_ai.misp import build_misp_event_payload, push_misp_event
+
+    try:
+        events = parse_paths(args.paths, source_hint=args.source)
+        report = analyze_events(events)
+        payload = build_misp_event_payload(
+            report,
+            info=args.event_info,
+            distribution=args.distribution,
+            threat_level_id=args.threat_level_id,
+            analysis=args.analysis,
+            tags=args.tag,
+        )
+        if args.dry_run:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if not args.misp_url or not args.misp_key:
+            print("honeypot-ai misp-push: MISP URL and key are required unless --dry-run is used", file=sys.stderr)
+            return 2
+        response = push_misp_event(args.misp_url, args.misp_key, payload)
+        print(json.dumps(response, indent=2, sort_keys=True))
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"honeypot-ai misp-push: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def _misp_pull(args: argparse.Namespace) -> int:
+    from honeypot_ai.misp import pull_misp_attributes, write_wazuh_cdb_lists
+
+    if not args.misp_url or not args.misp_key:
+        print("honeypot-ai misp-pull: MISP URL and key are required", file=sys.stderr)
+        return 2
+    try:
+        attributes = pull_misp_attributes(args.misp_url, args.misp_key, to_ids_only=not args.include_non_ids)
+        counts = write_wazuh_cdb_lists(attributes, args.output_dir, include_non_ids=args.include_non_ids)
+        total = sum(counts.values())
+        print(f"Wrote {total} Wazuh CDB indicator(s) to {args.output_dir}: {counts}", file=sys.stderr)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"honeypot-ai misp-pull: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def _wazuh_preview(args: argparse.Namespace) -> int:
+    from honeypot_ai.wazuh_preview import write_dashboard_preview
+
+    try:
+        summary = write_dashboard_preview(
+            args.paths,
+            args.output,
+            spec_path=args.spec,
+            refresh_seconds=max(0, args.refresh_seconds),
+        )
+    except ValueError as exc:
+        print(f"honeypot-ai wazuh-preview: {exc}", file=sys.stderr)
+        return 2
+    print(
+        "Rendered Wazuh dashboard preview to {} "
+        "(events={}, high_confidence={}, misp_matches={}, ebpf_events={})".format(
+            args.output,
+            summary["events"],
+            summary["high_confidence"],
+            summary["misp_matches"],
+            summary["ebpf_events"],
+        ),
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _wazuh_stream(args: argparse.Namespace) -> int:
+    from honeypot_ai.realtime import stream_forever, stream_once
+
+    try:
+        if args.once:
+            result = stream_once(
+                args.paths,
+                output_path=args.output,
+                state_path=args.state_file,
+                source_hint=args.source,
+                input_format=args.input_format,
+                preview_output=args.preview_output,
+                preview_spec=args.preview_spec,
+                refresh_seconds=max(0, args.refresh_seconds),
+            )
+            print(
+                "Processed {} raw line(s), {} parsed event(s), {} Wazuh alert event(s) into {}".format(
+                    result.raw_lines,
+                    result.parsed_events,
+                    result.alert_events,
+                    args.output,
+                ),
+                file=sys.stderr,
+            )
+            return 0
+
+        print(
+            f"Streaming {len(args.paths)} path(s) to {args.output}; press Ctrl-C to stop",
+            file=sys.stderr,
+        )
+        stream_forever(
+            args.paths,
+            output_path=args.output,
+            state_path=args.state_file,
+            source_hint=args.source,
+            input_format=args.input_format,
+            preview_output=args.preview_output,
+            preview_spec=args.preview_spec,
+            refresh_seconds=max(0, args.refresh_seconds),
+            poll_seconds=args.poll_seconds,
+        )
+    except KeyboardInterrupt:
+        print("Stopped Wazuh stream", file=sys.stderr)
+        return 0
+    except ValueError as exc:
+        print(f"honeypot-ai wazuh-stream: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def _write_alert_output(alerts: object, output_path: str | None, fmt: str, json_writer: object) -> str | None:
+    if fmt == "wazuh":
+        payload = ml_alerts_to_wazuh_ndjson(alerts)  # type: ignore[arg-type]
+        if output_path is None:
+            return payload
+        from pathlib import Path
+
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(payload, encoding="utf-8")
+        return None
+    return json_writer(alerts, output_path)  # type: ignore[operator]
 
 
 def _limit(iterable, limit: int | None):
