@@ -192,7 +192,7 @@ sudo target/release/honeypot-ebpf capture \
   --config config/ebpf-sensor.toml \
   --probe-object crates/ebpf-sensor-ebpf/target/bpfel-unknown-none/release/ebpf-sensor-ebpf \
   --duration-seconds 60 \
-  --output logs/raw/ebpf-live.ndjson
+  --stream-output logs/raw/ebpf-live-stream.ndjson
 ```
 
 The kernel probe crate is intentionally outside the default workspace. It needs
@@ -202,7 +202,10 @@ The current probes emit a stable kernel/userspace wire record and extract
 process `comm`, exec filename, openat filename/access type, IPv4 connect peer
 IP/port, uid/gid, and pid. The live loader also opportunistically enriches
 binary/argv for pid-bearing events from `/proc/<pid>/exe` and
-`/proc/<pid>/cmdline` when the process is still present.
+`/proc/<pid>/cmdline` when the process is still present. Use
+`--stream-output PATH` for strict live SIEM demos; it appends and flushes each
+event as it arrives while `--output PATH` remains available for final batch
+files.
 IPv6 peer extraction and deeper argv capture remain the next telemetry
 hardening steps.
 

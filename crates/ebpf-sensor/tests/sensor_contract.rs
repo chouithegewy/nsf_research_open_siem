@@ -1,7 +1,7 @@
 use ebpf_sensor::{
     capture_plan, container_id_from_cgroup, decode_wire_event, enrich_process_context_from_procfs,
-    normalize_kernel_event, run_with_io, Config, KernelEvent, KernelEventKind, WireEventRecord,
-    WIRE_EVENT_RECORD_SIZE,
+    normalize_kernel_event, run_with_io, Config, KernelEvent, KernelEventKind,
+    StreamingEventWriter, WireEventRecord, WIRE_EVENT_RECORD_SIZE,
 };
 use ebpf_sensor_common::SCHEMA_VERSION;
 
@@ -79,6 +79,49 @@ fn capture_dry_run_emits_machine_readable_plan() {
 }
 
 #[test]
+fn help_documents_stream_output_for_live_capture() {
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+
+    run_with_io(vec!["help".to_string()], &mut stdout, &mut stderr).unwrap();
+
+    assert!(stderr.is_empty());
+    let help = String::from_utf8(stdout).unwrap();
+    assert!(help.contains("--stream-output PATH"));
+    assert!(help.contains("append and flush each live event"));
+}
+
+#[test]
+fn streaming_writer_appends_complete_ndjson_records() {
+    let path = std::env::temp_dir().join(format!(
+        "honeypot-ebpf-stream-writer-{}.ndjson",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&path);
+    let first = sample_kernel_event(8100, "sh", "/bin/sh", "2026-06-23T20:00:00Z");
+    let second = sample_kernel_event(8101, "curl", "/usr/bin/curl", "2026-06-23T20:00:01Z");
+
+    {
+        let mut writer = StreamingEventWriter::append(path.as_path()).unwrap();
+        writer.write_event(&first).unwrap();
+    }
+    {
+        let mut writer = StreamingEventWriter::append(path.as_path()).unwrap();
+        writer.write_event(&second).unwrap();
+    }
+
+    let contents = std::fs::read_to_string(&path).unwrap();
+    let _ = std::fs::remove_file(&path);
+    let lines: Vec<&str> = contents.lines().collect();
+    assert_eq!(lines.len(), 2);
+    let first_json: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    let second_json: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+    assert_eq!(first_json["pid"], 8100);
+    assert_eq!(second_json["pid"], 8101);
+    assert_eq!(second_json["comm"], "curl");
+}
+
+#[test]
 fn kernel_exec_event_normalizes_and_redacts_sensitive_arguments() {
     let event = KernelEvent {
         kind: KernelEventKind::ProcessExec,
@@ -113,6 +156,38 @@ fn kernel_exec_event_normalizes_and_redacts_sensitive_arguments() {
     assert_eq!(normalized.binary.as_deref(), Some("/usr/bin/curl"));
     assert_eq!(normalized.arguments_sample[1], "[redacted]");
     assert_eq!(normalized.severity_hint.as_deref(), Some("medium"));
+}
+
+fn sample_kernel_event(
+    pid: i64,
+    comm: &str,
+    binary: &str,
+    timestamp: &str,
+) -> ebpf_sensor_common::EbpfEvent {
+    normalize_kernel_event(
+        KernelEvent {
+            kind: KernelEventKind::ProcessExec,
+            timestamp: timestamp.to_string(),
+            pid: Some(pid),
+            ppid: Some(1),
+            uid: Some(1000),
+            gid: Some(1000),
+            comm: Some(comm.to_string()),
+            binary: Some(binary.to_string()),
+            arguments: vec![comm.to_string()],
+            filename: None,
+            access_type: None,
+            src_ip: None,
+            src_port: None,
+            dest_ip: None,
+            dest_port: None,
+            protocol: None,
+            cgroup_id: None,
+            container_id: None,
+        },
+        &test_config(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -168,6 +243,43 @@ fn capture_without_dry_run_requires_a_probe_object() {
     assert!(stdout.is_empty());
     assert!(stderr.is_empty());
     assert!(err.contains("--probe-object"));
+}
+
+#[test]
+fn capture_rejects_same_batch_and_stream_output_path() {
+    let probe_object = std::env::temp_dir().join(format!(
+        "honeypot-ebpf-stream-conflict-probe-{}.o",
+        std::process::id()
+    ));
+    let output = std::env::temp_dir().join(format!(
+        "honeypot-ebpf-stream-conflict-{}.ndjson",
+        std::process::id()
+    ));
+    std::fs::write(&probe_object, b"\x7fELF").unwrap();
+
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let err = run_with_io(
+        vec![
+            "capture".to_string(),
+            "--probe-object".to_string(),
+            probe_object.display().to_string(),
+            "--duration-seconds".to_string(),
+            "1".to_string(),
+            "--output".to_string(),
+            output.display().to_string(),
+            "--stream-output".to_string(),
+            output.display().to_string(),
+        ],
+        &mut stdout,
+        &mut stderr,
+    )
+    .unwrap_err();
+
+    let _ = std::fs::remove_file(&probe_object);
+    assert!(stdout.is_empty());
+    assert!(stderr.is_empty());
+    assert!(err.contains("must use different paths"));
 }
 
 #[cfg(not(feature = "live-ebpf"))]

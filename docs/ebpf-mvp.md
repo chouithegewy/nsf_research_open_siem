@@ -1,6 +1,6 @@
 # Rust eBPF Sensor MVP
 
-Last updated: 2026-06-16
+Last updated: 2026-06-23
 
 ## Current MVP Boundary
 
@@ -9,7 +9,10 @@ Implemented now:
 - Rust workspace crates for normalized eBPF events and the `honeypot-ebpf` CLI.
 - `honeypot-ebpf check` for host readiness hints: BTF, ring-buffer hint, and BPF privilege note.
 - `honeypot-ebpf capture --dry-run` for a machine-readable probe/readiness plan.
-- Optional `live-ebpf` userspace loader feature that loads an Aya probe object, attaches MVP probes, drains the `EVENTS` ring buffer, decodes fixed wire records, and writes NDJSON or DuckDB output.
+- Optional `live-ebpf` userspace loader feature that loads an Aya probe object,
+  attaches MVP probes, drains the `EVENTS` ring buffer, decodes fixed wire
+  records, and writes batch NDJSON, per-event streaming NDJSON, or DuckDB
+  output.
 - Standalone Aya eBPF probe crate with tracepoint/kprobe entrypoints for process, network, file, and privilege event families.
 - Fixed-size kernel/userspace wire record decoder with redaction and watched-prefix filtering.
 - `honeypot-ebpf import` and replay-style `run --input` for normalized eBPF NDJSON.
@@ -47,6 +50,28 @@ sudo target/release/honeypot-ebpf capture \
   --probe-object crates/ebpf-sensor-ebpf/target/bpfel-unknown-none/release/ebpf-sensor-ebpf \
   --duration-seconds 60 \
   --output logs/raw/ebpf-live.ndjson
+```
+
+For strict live SIEM ingestion, use `--stream-output`. This opens the file in
+append mode and flushes each decoded event as it arrives from the ring buffer:
+
+```bash
+sudo target/release/honeypot-ebpf capture \
+  --config config/ebpf-sensor.toml \
+  --probe-object crates/ebpf-sensor-ebpf/target/bpfel-unknown-none/release/ebpf-sensor-ebpf \
+  --duration-seconds 60 \
+  --stream-output logs/raw/ebpf-live-stream.ndjson
+```
+
+That stream can be tailed by the Wazuh integration:
+
+```bash
+PYTHONPATH=src python3 -m honeypot_ai wazuh-stream \
+  logs/raw/ebpf-live-stream.ndjson \
+  --source ebpf \
+  --output /var/log/honeypot-ai/alerts.ndjson \
+  --state-file /var/lib/honeypot-ai/ebpf-wazuh-stream.state.json \
+  --poll-seconds 1
 ```
 
 Build endpoint windows from the same fixture:
@@ -102,6 +127,7 @@ ssh -t "$TPOT_USER@$TPOT_HOST" 'cd ~/nsf_research_ebpf && \
     --config config/ebpf-sensor.toml \
     --probe-object bpf/ebpf-sensor-ebpf \
     --duration-seconds 30 \
+    --stream-output output/ebpf-live-stream.ndjson \
     --output output/ebpf-live-smoke.ndjson \
     --db output/ebpf-live-smoke.duckdb'
 ```
@@ -166,7 +192,8 @@ Current kernel extraction includes pid, uid/gid, comm, `sched_process_exec`
 filename, IPv4 connect destination IP/port, and `openat` filename/access type.
 The live loader opportunistically enriches binary/argv for pid-bearing events
 from `/proc/<pid>/exe` and `/proc/<pid>/cmdline` before writing NDJSON/DuckDB
-output.
+output. With `--stream-output`, each normalized event is appended and flushed
+immediately so file tailers can forward it before the capture duration ends.
 
 Next hardening pass:
 

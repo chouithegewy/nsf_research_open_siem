@@ -591,7 +591,7 @@ pub fn enrich_process_context_from_procfs(mut event: EbpfEvent, proc_root: &Path
 fn usage<W: Write>(stdout: &mut W) -> Result<()> {
     writeln!(
         stdout,
-        "Usage:\n  honeypot-ebpf check [--config PATH]\n  honeypot-ebpf capture [--config PATH] --dry-run\n  honeypot-ebpf capture [--config PATH] --probe-object PATH [--duration-seconds N] [--output PATH] [--db PATH]\n  honeypot-ebpf import PATH [--db PATH]\n  honeypot-ebpf run --input PATH [--config PATH] [--output PATH] [--db PATH]\n\nThe MVP userspace tool validates host eBPF readiness, plans live probes, imports normalized eBPF NDJSON, and replays NDJSON through the same redaction/storage path."
+        "Usage:\n  honeypot-ebpf check [--config PATH]\n  honeypot-ebpf capture [--config PATH] --dry-run\n  honeypot-ebpf capture [--config PATH] --probe-object PATH [--duration-seconds N] [--output PATH] [--stream-output PATH] [--db PATH]\n  honeypot-ebpf import PATH [--db PATH]\n  honeypot-ebpf run --input PATH [--config PATH] [--output PATH] [--db PATH]\n\nThe MVP userspace tool validates host eBPF readiness, plans live probes, imports normalized eBPF NDJSON, and replays NDJSON through the same redaction/storage path. Use --stream-output PATH to append and flush each live event as it arrives for SIEM tailers."
     )
     .map_err(|err| err.to_string())
 }
@@ -640,11 +640,19 @@ fn capture<W: Write, E: Write>(args: &[String], stdout: &mut W, stderr: &mut E) 
         .map(parse_positive_u64)
         .transpose()?
         .unwrap_or(60);
+    let output_path = option_value(args, "--output");
+    let stream_output_path = option_value(args, "--stream-output");
+    if let (Some(output), Some(stream_output)) = (output_path, stream_output_path) {
+        if output == stream_output {
+            return Err("--output and --stream-output must use different paths".to_string());
+        }
+    }
     capture_live(
         probe_object,
         &config,
         duration_seconds,
-        option_value(args, "--output"),
+        output_path,
+        stream_output_path,
         option_value(args, "--db"),
         stdout,
         stderr,
@@ -657,6 +665,7 @@ fn capture_live<W: Write, E: Write>(
     config: &Config,
     duration_seconds: u64,
     output_path: Option<&str>,
+    stream_output_path: Option<&str>,
     db_path: Option<&str>,
     stdout: &mut W,
     stderr: &mut E,
@@ -731,6 +740,10 @@ fn capture_live<W: Write, E: Write>(
         .ok_or_else(|| "probe object does not expose EVENTS ring buffer".to_string())?;
     let mut events_map = RingBuf::try_from(map).map_err(|err| err.to_string())?;
     let deadline = Instant::now() + Duration::from_secs(duration_seconds);
+    let mut streaming_writer = stream_output_path
+        .map(StreamingEventWriter::append)
+        .transpose()?;
+    let keep_events = output_path.is_some() || db_path.is_some() || stream_output_path.is_none();
     let mut events = Vec::new();
     writeln!(
         stderr,
@@ -745,10 +758,13 @@ fn capture_live<W: Write, E: Write>(
             let record = WireEventRecord::from_bytes(&item)
                 .map_err(|err| format!("failed to decode eBPF ring event: {err}"))?;
             if let Some(event) = decode_wire_event(record, &now_rfc3339(), config) {
-                events.push(enrich_process_context_from_procfs(
-                    event,
-                    Path::new("/proc"),
-                ));
+                let event = enrich_process_context_from_procfs(event, Path::new("/proc"));
+                if let Some(writer) = streaming_writer.as_mut() {
+                    writer.write_event(&event)?;
+                }
+                if keep_events {
+                    events.push(event);
+                }
             }
         }
         if !drained {
@@ -782,6 +798,7 @@ fn capture_live<W: Write, E: Write>(
     _config: &Config,
     _duration_seconds: u64,
     _output_path: Option<&str>,
+    _stream_output_path: Option<&str>,
     _db_path: Option<&str>,
     _stdout: &mut W,
     _stderr: &mut E,
@@ -856,11 +873,40 @@ fn read_events(path: &str, config: &Config) -> Result<Vec<EbpfEvent>> {
     Ok(events)
 }
 
+pub struct StreamingEventWriter {
+    output: PathBuf,
+    file: File,
+}
+
+impl StreamingEventWriter {
+    pub fn append<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let output = path.as_ref().to_path_buf();
+        ensure_parent_dir(&output)?;
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&output)
+            .map_err(|err| format!("{}: {err}", output.display()))?;
+        Ok(Self { output, file })
+    }
+
+    pub fn write_event(&mut self, event: &EbpfEvent) -> Result<()> {
+        self.file
+            .write_all(
+                event_to_ndjson(event)
+                    .map_err(|err| err.to_string())?
+                    .as_bytes(),
+            )
+            .map_err(|err| format!("{}: {err}", self.output.display()))?;
+        self.file
+            .flush()
+            .map_err(|err| format!("{}: {err}", self.output.display()))
+    }
+}
+
 fn write_events(path: &str, events: &[EbpfEvent]) -> Result<()> {
     let output = PathBuf::from(path);
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent).map_err(|err| format!("{}: {err}", parent.display()))?;
-    }
+    ensure_parent_dir(&output)?;
     let mut file = OpenOptions::new()
         .create(true)
         .truncate(true)
@@ -878,10 +924,18 @@ fn write_events(path: &str, events: &[EbpfEvent]) -> Result<()> {
     Ok(())
 }
 
-fn insert_events(db_path: &str, events: &[EbpfEvent]) -> Result<usize> {
-    if let Some(parent) = Path::new(db_path).parent() {
+fn ensure_parent_dir(path: &Path) -> Result<()> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent).map_err(|err| format!("{}: {err}", parent.display()))?;
     }
+    Ok(())
+}
+
+fn insert_events(db_path: &str, events: &[EbpfEvent]) -> Result<usize> {
+    ensure_parent_dir(Path::new(db_path))?;
     let conn = Connection::open(db_path).map_err(|err| err.to_string())?;
     init_db(&conn)?;
     let mut stmt = conn

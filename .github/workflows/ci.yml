@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  eBPF-integration-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Install Python and Pixi
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3 python3-pip
+          curl -fsSL https://pixi.sh/install.sh | bash
+          export PATH="$HOME/.local/bin:$PATH"
+          pixi install
+
+      - name: Set up Podman
+        uses: redhat-actions/setup-podman@v2
+        with:
+          version: latest
+
+      - name: Build eBPF sensor (live-ebpf)
+        run: cargo build -p ebpf-sensor --features live-ebpf --release
+
+      - name: Run Rust test suite
+        run: cargo test -p ebpf-sensor --features live-ebpf
+
+      - name: Build container image with Podman
+        run: |
+          cd docker_demo
+          podman build -t ebpf-demo .
+
+      - name: Run eBPF demo inside container
+        run: |
+          mkdir -p demo_output
+          podman run --rm --privileged -v $(pwd)/demo_output:/out ebpf-demo \
+            bash -c "falco -r /etc/falco/falco_rules.yaml -E sample-events execve | \
+            python3 -m honeypot_ai live-sensor --format wazuh \
+            --model data/models/current/model.joblib --output /out/alerts.ndjson"
+
+      - name: Verify alerts produced
+        run: |
+          if [ -s demo_output/alerts.ndjson ]; then
+            echo "✅ Alerts generated";
+            cat demo_output/alerts.ndjson;
+          else
+            echo "❌ No alerts generated"; exit 1;
+          fi
+
+      - name: Run Python test suite
+        run: pixi run test

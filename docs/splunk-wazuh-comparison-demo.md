@@ -213,17 +213,8 @@ Implemented now:
 - MISP push and MISP pull to Wazuh CDB list files.
 - Rust eBPF sensor MVP that captures process, file, network, privilege, UID/GID,
   and container-related fields.
-
-Important limitation:
-
-```text
-The Python Wazuh ingestion layer can tail eBPF NDJSON in near real time, but
-the Rust eBPF sensor currently writes finite capture-window files instead of
-flushing each event as it arrives.
-```
-
-For a strict live demo, add per-event append/flush output to the Rust sensor or
-wrap short capture windows into a rolling append file before the presentation.
+- Rust eBPF live capture supports `--stream-output PATH`, which appends and
+  flushes each event as it arrives for strict kernel-to-dashboard demos.
 
 ## Demo Mode A: Controlled Real-Time Replay
 
@@ -296,6 +287,26 @@ Expected result:
 
 Use this after Mode A is working. This demonstrates the innovation layer more
 convincingly because the events originate from live host behavior.
+
+Start the eBPF sensor stream and the Wazuh tailer against the same append-only
+file:
+
+```bash
+sudo target/release/honeypot-ebpf capture \
+  --config config/ebpf-sensor.toml \
+  --probe-object crates/ebpf-sensor-ebpf/target/bpfel-unknown-none/release/ebpf-sensor-ebpf \
+  --duration-seconds 300 \
+  --stream-output /srv/honeypot-ai/demo/ebpf-live-stream.ndjson
+```
+
+```bash
+PYTHONPATH=src python3 -m honeypot_ai wazuh-stream \
+  /srv/honeypot-ai/demo/ebpf-live-stream.ndjson \
+  --source ebpf \
+  --output /var/log/honeypot-ai/alerts.ndjson \
+  --state-file /var/lib/honeypot-ai/demo-ebpf-wazuh-stream.state.json \
+  --poll-seconds 1
+```
 
 Benign activity:
 
@@ -480,7 +491,8 @@ detection_rate = detected_malicious_scenarios / total_malicious_scenarios
 - MISP API credentials are present only in `.env` or server secret storage.
 - MISP CDB lists have been generated and copied to the Wazuh manager.
 - `wazuh-stream` is running and appending alerts.
-- eBPF sensor output path is known.
+- eBPF sensor is writing `--stream-output` to the file watched by
+  `wazuh-stream`.
 - A safe replay scenario is ready if live eBPF capture fails.
 - The presenter has Splunk and Wazuh searches pinned or saved.
 
@@ -488,13 +500,12 @@ detection_rate = detected_malicious_scenarios / total_malicious_scenarios
 
 Highest-value gaps:
 
-1. Add per-event append/flush streaming output to the Rust eBPF sensor.
-2. Add a Splunk continuous tail-to-HEC path, or document the Splunk file monitor
+1. Add a Splunk continuous tail-to-HEC path, or document the Splunk file monitor
    configuration used on the research server.
-3. Add a scenario runner that appends demo events with a fresh `run_id` and
+2. Add a scenario runner that appends demo events with a fresh `run_id` and
    `scenario_id`.
-4. Verify Wazuh dashboard import and rule matches on the research server.
-5. Capture screenshots or short recordings of the same scenario in Splunk and
+3. Verify Wazuh dashboard import and rule matches on the research server.
+4. Capture screenshots or short recordings of the same scenario in Splunk and
    Wazuh for the final presentation.
 
 These gaps do not block the research design. They are the remaining work needed
