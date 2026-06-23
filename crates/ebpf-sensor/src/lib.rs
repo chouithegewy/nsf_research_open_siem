@@ -514,6 +514,38 @@ pub fn decode_wire_event(
     )
 }
 
+/// Extract a container id from the contents of `/proc/<pid>/cgroup`.
+/// Recognizes Docker/CRI-O/containerd/libpod cgroup layouts (v1 and v2).
+pub fn container_id_from_cgroup(contents: &str) -> Option<String> {
+    for line in contents.lines() {
+        // cgroup v1 lines are "hierarchy:controllers:path"; v2 is "0::path".
+        let path = line.rsplit(':').next().unwrap_or(line);
+        for segment in path.split('/') {
+            if let Some(id) = container_id_from_segment(segment) {
+                return Some(id);
+            }
+        }
+    }
+    None
+}
+
+fn container_id_from_segment(segment: &str) -> Option<String> {
+    // systemd cgroup v2 names look like "docker-<id>.scope" / "crio-<id>.scope".
+    let mut candidate = segment.strip_suffix(".scope").unwrap_or(segment);
+    for prefix in ["docker-", "crio-", "containerd-", "libpod-"] {
+        if let Some(rest) = candidate.strip_prefix(prefix) {
+            candidate = rest;
+            break;
+        }
+    }
+    // Container ids embedded in cgroup paths are the full hex id (Docker: 64).
+    if candidate.len() >= 32 && candidate.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(candidate.to_string())
+    } else {
+        None
+    }
+}
+
 pub fn enrich_process_context_from_procfs(mut event: EbpfEvent, proc_root: &Path) -> EbpfEvent {
     let Some(pid) = event.pid else {
         return event;
@@ -521,6 +553,11 @@ pub fn enrich_process_context_from_procfs(mut event: EbpfEvent, proc_root: &Path
     if event.binary.is_none() {
         if let Ok(path) = fs::read_link(proc_root.join(pid.to_string()).join("exe")) {
             event.binary = Some(path.display().to_string());
+        }
+    }
+    if event.container_id.is_none() {
+        if let Ok(contents) = fs::read_to_string(proc_root.join(pid.to_string()).join("cgroup")) {
+            event.container_id = container_id_from_cgroup(&contents);
         }
     }
     if !event.arguments_sample.is_empty() {

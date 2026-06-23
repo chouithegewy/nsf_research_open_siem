@@ -353,7 +353,8 @@ def _apply_event(state: _WindowState, event: Event) -> None:
         command = event.command.lower()
         state.features["commands"] += 1.0
         if any(token.lower() in command for token in DOWNLOAD_TOKENS):
-            state.features["download_commands"] += 1.0
+            if not (event.source == "ebpf" and _targets_loopback(command)):
+                state.features["download_commands"] += 1.0
         if any(token in command for token in REVERSE_SHELL_TOKENS):
             state.features["reverse_shells"] += 1.0
         if any(token in command for token in PERSISTENCE_TOKENS):
@@ -395,11 +396,11 @@ def _apply_ebpf_event(state: _WindowState, event: Event) -> None:
         state.features["shell_execs"] += 1.0
     if _looks_like_script_runtime(binary, command):
         state.features["script_execs"] += 1.0
-    if _looks_like_download_tool(binary, command):
+    if _looks_like_download_tool(binary, command) and not _targets_loopback(command):
         state.features["download_tool_execs"] += 1.0
     if "network_connect" in event_type:
         state.features["outbound_connects"] += 1.0
-    if "privilege_change" in event_type:
+    if "privilege_change" in event_type and not _is_container_runtime(_raw_string(event, "comm")):
         state.features["privilege_changes"] += 1.0
     if "file_access" in event_type:
         access = (_raw_string(event, "access_type") or "").lower()
@@ -487,6 +488,28 @@ def _looks_like_script_runtime(binary: str | None, command: str) -> bool:
 def _looks_like_download_tool(binary: str | None, command: str) -> bool:
     value = (binary or "").rsplit("/", 1)[-1].lower()
     return value in {"curl", "wget", "fetch", "ftp", "tftp"} or any(token.lower() in command for token in DOWNLOAD_TOKENS)
+
+
+_LOOPBACK_MARKERS = ("127.0.0.1", "::1", "[::1]", "localhost")
+
+
+def _targets_loopback(command: str) -> bool:
+    value = command.lower()
+    return any(marker in value for marker in _LOOPBACK_MARKERS)
+
+
+# Container-runtime processes legitimately call setuid/setgid during container
+# setup; on a honeypot host this is baseline, not attacker privilege escalation.
+_CONTAINER_RUNTIME_COMMS = ("runc", "containerd", "dockerd", "docker-proxy")
+
+
+def _is_container_runtime(comm: str | None) -> bool:
+    if not comm:
+        return False
+    value = comm.lower()
+    if value in _CONTAINER_RUNTIME_COMMS:
+        return True
+    return value.startswith("runc:") or value.startswith("containerd-shim")
 
 
 def _is_temp_path(path: str) -> bool:

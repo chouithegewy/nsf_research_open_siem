@@ -1,7 +1,7 @@
 # Default MVP profile for the Rust eBPF host sensor.
 
 [sensor]
-host = "localhost"
+host = "instance-20260519-001448"
 window_seconds = [1, 60]
 learning_days = 3
 

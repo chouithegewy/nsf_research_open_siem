@@ -1,6 +1,7 @@
 use ebpf_sensor::{
-    capture_plan, decode_wire_event, enrich_process_context_from_procfs, normalize_kernel_event,
-    run_with_io, Config, KernelEvent, KernelEventKind, WireEventRecord, WIRE_EVENT_RECORD_SIZE,
+    capture_plan, container_id_from_cgroup, decode_wire_event, enrich_process_context_from_procfs,
+    normalize_kernel_event, run_with_io, Config, KernelEvent, KernelEventKind, WireEventRecord,
+    WIRE_EVENT_RECORD_SIZE,
 };
 use ebpf_sensor_common::SCHEMA_VERSION;
 
@@ -319,4 +320,52 @@ fn wire_record_rejects_wrong_size_or_unknown_kind() {
     bytes[2] = 255;
     let decoded = WireEventRecord::from_bytes(&bytes).unwrap();
     assert!(decode_wire_event(decoded, "2026-06-16T12:00:03Z", &test_config()).is_none());
+}
+
+const CID: &str = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+
+#[test]
+fn container_id_from_cgroup_parses_docker_layouts() {
+    // cgroup v2 systemd scope
+    assert_eq!(
+        container_id_from_cgroup(&format!("0::/system.slice/docker-{CID}.scope")).as_deref(),
+        Some(CID)
+    );
+    // cgroup v1 with controller columns
+    assert_eq!(
+        container_id_from_cgroup(&format!("12:pids:/docker/{CID}\n11:memory:/docker/{CID}"))
+            .as_deref(),
+        Some(CID)
+    );
+}
+
+#[test]
+fn container_id_from_cgroup_ignores_host_processes() {
+    assert_eq!(container_id_from_cgroup("0::/init.scope"), None);
+    assert_eq!(
+        container_id_from_cgroup("0::/user.slice/user-1000.slice/session-3.scope"),
+        None
+    );
+}
+
+#[test]
+fn procfs_enrichment_populates_container_id_from_cgroup() {
+    let root = std::env::temp_dir().join(format!("honeypot-cgroup-test-{}", std::process::id()));
+    let process_dir = root.join("7200");
+    std::fs::create_dir_all(&process_dir).unwrap();
+    std::fs::write(
+        process_dir.join("cgroup"),
+        format!("0::/system.slice/docker-{CID}.scope\n"),
+    )
+    .unwrap();
+    let record = WireEventRecord::new(KernelEventKind::ProcessExec)
+        .with_pid(7200)
+        .with_comm("curl")
+        .with_binary("/usr/bin/curl");
+    let decoded = decode_wire_event(record, "2026-06-23T18:56:01Z", &test_config()).unwrap();
+
+    let enriched = enrich_process_context_from_procfs(decoded, &root);
+
+    let _ = std::fs::remove_dir_all(&root);
+    assert_eq!(enriched.container_id.as_deref(), Some(CID));
 }
