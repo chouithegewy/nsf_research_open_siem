@@ -5,6 +5,8 @@ from datetime import datetime
 from html import escape
 import json
 from pathlib import Path
+import threading
+import time
 from typing import Any, Iterable, Mapping
 
 
@@ -44,6 +46,72 @@ def load_wazuh_events(paths: Iterable[str | Path]) -> list[dict[str, Any]]:
     return events
 
 
+_LLM_LOCK = threading.Lock()
+_LLM_SUMMARY_CACHE: str | None = None
+_LLM_LAST_RUN: float = 0.0
+_LLM_THREAD_ACTIVE = False
+
+
+def get_live_llm_summary(events: Iterable[Mapping[str, Any]]) -> str:
+    global _LLM_SUMMARY_CACHE, _LLM_LAST_RUN, _LLM_THREAD_ACTIVE
+
+    from honeypot_ai.llm import LLMClient
+    client = LLMClient()
+    if not client.is_enabled():
+        return "AI Analyst is disabled (LLM_API_KEY environment variable is not configured)."
+
+    now = time.time()
+    if _LLM_SUMMARY_CACHE is not None and (now - _LLM_LAST_RUN) < 30.0:
+        return _LLM_SUMMARY_CACHE
+
+    if _LLM_THREAD_ACTIVE:
+        return _LLM_SUMMARY_CACHE or "AI Analyst is currently analyzing live telemetry..."
+
+    event_list = list(events)
+    if not event_list:
+        return "No events received to analyze."
+
+    recent_events = sorted(
+        event_list,
+        key=lambda e: e.get("timestamp") or e.get("data", {}).get("timestamp") or "",
+        reverse=True
+    )[:5]
+
+    cleaned_events = []
+    for e in recent_events:
+        item = dict(e)
+        if "data" in item and isinstance(item["data"], dict):
+            item = dict(item["data"])
+        item = {
+            k: v for k, v in item.items()
+            if k not in (
+                "kexAlgs", "keyAlgs", "encCS", "macCS", "compCS", "langCS",
+                "hasshAlgorithms", "kexAlgorithms", "payload", "packet",
+                "payload_printable"
+            )
+        }
+        cleaned_events.append(item)
+
+    def _run_llm_request():
+        global _LLM_SUMMARY_CACHE, _LLM_LAST_RUN, _LLM_THREAD_ACTIVE
+        with _LLM_LOCK:
+            try:
+                summary = client.summarize_events(cleaned_events)
+                if summary:
+                    _LLM_SUMMARY_CACHE = summary
+                    _LLM_LAST_RUN = time.time()
+            except Exception as exc:
+                _LLM_SUMMARY_CACHE = f"AI Analyst failed: {exc}"
+            finally:
+                _LLM_THREAD_ACTIVE = False
+
+    _LLM_THREAD_ACTIVE = True
+    thread = threading.Thread(target=_run_llm_request, daemon=True)
+    thread.start()
+
+    return _LLM_SUMMARY_CACHE or "AI Analyst is reviewing live telemetry (this may take up to 20 seconds)..."
+
+
 def render_dashboard_preview(
     events: Iterable[Mapping[str, Any]],
     spec: Mapping[str, Any],
@@ -51,6 +119,7 @@ def render_dashboard_preview(
     refresh_seconds: int = 0,
 ) -> str:
     model = build_preview_model(events)
+    llm_summary = get_live_llm_summary(events)
     title = str(spec.get("name") or "Honeypot AI Single Pane")
     purpose = str(spec.get("purpose") or "Local preview of Honeypot AI events before SIEM deployment.")
     data_view = str(spec.get("data_view") or "wazuh-alerts-*")
@@ -263,6 +332,12 @@ def render_dashboard_preview(
       {_metric("High confidence", model["high_confidence"])}
       {_metric("MISP matches", model["misp_matches"])}
       {_metric("eBPF events", model["ebpf_events"])}
+    </section>
+    <section class="panel" style="margin-bottom: 18px;">
+      <h2 style="margin-top: 0; color: var(--teal); font-weight: 700;">Live AI Threat Analyst Summary</h2>
+      <div style="background: #111827; color: #f3f4f6; border-radius: 8px; padding: 18px; font-family: monospace; font-size: 13.5px; white-space: pre-wrap; line-height: 1.5; border: 1px solid var(--line);">
+        {_html(llm_summary)}
+      </div>
     </section>
     <section class="grid">
       <div>

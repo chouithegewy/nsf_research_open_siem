@@ -394,6 +394,12 @@ COMMANDS = {
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        import dotenv
+        dotenv.load_dotenv()
+    except ImportError:
+        pass
+
     if argv is None:
         argv = sys.argv[1:]
     if argv and argv[0] not in COMMANDS and argv[0] not in {"-h", "--help"}:
