@@ -45,6 +45,23 @@ SPLUNK_INDEX=honeypot \
 PYTHONPATH=src python3 -m honeypot_ai analyze --format splunk sample_logs/honeypot.ndjson
 ```
 
+For continuous near-real-time ingestion (the Splunk counterpart to `wazuh-stream`),
+tail appended log files into a Splunk HEC-format NDJSON stream. The output file can
+be picked up by a Splunk file monitor, and events are also pushed to HEC when
+credentials are supplied:
+
+```bash
+PYTHONPATH=src python3 -m honeypot_ai splunk-stream \
+  /srv/honeypot-ai/demo/source.ndjson \
+  --output build/splunk-live/events.ndjson \
+  --poll-seconds 1
+
+SPLUNK_HEC_URL=https://splunk.example:8088 \
+SPLUNK_HEC_TOKEN=TOKEN \
+PYTHONPATH=src python3 -m honeypot_ai splunk-stream \
+  /srv/honeypot-ai/demo/source.ndjson --once
+```
+
 Wazuh-friendly newline-delimited JSON:
 
 ```bash

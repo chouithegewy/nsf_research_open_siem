@@ -79,6 +79,18 @@ pub fn event_to_ndjson(event: &EbpfEvent) -> Result<String, serde_json::Error> {
     serde_json::to_string(event).map(|line| format!("{line}\n"))
 }
 
+/// Serialize an event directly into a writer as a single NDJSON line,
+/// avoiding intermediate `String` allocation. The caller is responsible
+/// for flushing.
+pub fn event_write_ndjson<W: std::io::Write>(
+    event: &EbpfEvent,
+    writer: &mut W,
+) -> Result<(), std::io::Error> {
+    serde_json::to_writer(&mut *writer, event)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writer.write_all(b"\n")
+}
+
 pub fn event_from_json_line(line: &str) -> Result<Option<EbpfEvent>, serde_json::Error> {
     let trimmed = line.trim();
     if trimmed.is_empty() || trimmed.starts_with('#') {

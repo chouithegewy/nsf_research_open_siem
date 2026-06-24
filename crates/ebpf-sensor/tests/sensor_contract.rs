@@ -1,7 +1,7 @@
 use ebpf_sensor::{
     capture_plan, container_id_from_cgroup, decode_wire_event, enrich_process_context_from_procfs,
     normalize_kernel_event, run_with_io, Config, KernelEvent, KernelEventKind,
-    StreamingEventWriter, WireEventRecord, WIRE_EVENT_RECORD_SIZE,
+    StreamingDbWriter, StreamingEventWriter, WireEventRecord, WIRE_EVENT_RECORD_SIZE,
 };
 use ebpf_sensor_common::SCHEMA_VERSION;
 
@@ -480,4 +480,30 @@ fn procfs_enrichment_populates_container_id_from_cgroup() {
 
     let _ = std::fs::remove_dir_all(&root);
     assert_eq!(enriched.container_id.as_deref(), Some(CID));
+}
+
+#[test]
+fn streaming_db_writer_inserts_events_individually() {
+    let db_path = std::env::temp_dir().join(format!(
+        "honeypot-streaming-db-{}.duckdb",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&db_path);
+    let first = sample_kernel_event(9000, "sh", "/bin/sh", "2026-06-23T21:00:00Z");
+    let second = sample_kernel_event(9001, "curl", "/usr/bin/curl", "2026-06-23T21:00:01Z");
+
+    {
+        let mut db = StreamingDbWriter::open(db_path.to_str().unwrap()).unwrap();
+        db.insert_event(&first).unwrap();
+        // After one insert, the row should already be queryable.
+        db.insert_event(&second).unwrap();
+    }
+
+    // Re-open the database and verify both rows are present.
+    let conn = duckdb::Connection::open(&db_path).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM ebpf_events", [], |row| row.get(0))
+        .unwrap();
+    let _ = std::fs::remove_file(&db_path);
+    assert_eq!(count, 2);
 }

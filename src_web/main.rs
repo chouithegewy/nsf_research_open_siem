@@ -31,6 +31,8 @@ struct AppState {
     sync_lock: Arc<Mutex<()>>,
     import_lock: Arc<StdMutex<()>>,
     import_running: Arc<AtomicBool>,
+    live_llm_summary: Arc<StdMutex<Option<String>>>,
+    live_llm_running: Arc<AtomicBool>,
 }
 
 #[derive(Clone)]
@@ -108,6 +110,8 @@ async fn main() -> std::io::Result<()> {
         sync_lock: Arc::new(Mutex::new(())),
         import_lock: Arc::new(StdMutex::new(())),
         import_running: Arc::new(AtomicBool::new(false)),
+        live_llm_summary: Arc::new(StdMutex::new(None)),
+        live_llm_running: Arc::new(AtomicBool::new(false)),
     });
 
     println!("honeypot-web listening on http://{}", config.bind);
@@ -120,6 +124,8 @@ async fn main() -> std::io::Result<()> {
             .route("/logout", web::post().to(logout))
             .route("/", web::get().to(dashboard))
             .route("/dashboard/live", web::get().to(dashboard_live))
+            .route("/dashboard/llm-summary", web::get().to(llm_summary))
+            .route("/dashboard/llm-summary/generate", web::post().to(generate_llm_summary))
             .route("/findings", web::get().to(findings))
             .route("/actors", web::get().to(actors))
             .route("/iocs", web::get().to(iocs))
@@ -1443,7 +1449,16 @@ fn login_html(error: bool) -> String {
 fn dashboard_html(model: &BTreeMap<String, String>) -> String {
     format!(
         r#"<section class="hero"><h1>Honeypot results</h1><form method="post" action="/admin/import-report"><button>Import latest report</button></form></section>
-<section id="dashboard-live" hx-get="/dashboard/live" hx-trigger="every 5s" hx-swap="innerHTML">{}</section>"#,
+<section id="dashboard-live" hx-get="/dashboard/live" hx-trigger="every 5s" hx-swap="innerHTML">{}</section>
+<section class="panel" style="margin-top: 20px;">
+  <h2>Live AI Threat Analyst Summary</h2>
+  <div id="llm-summary-container" hx-get="/dashboard/llm-summary" hx-trigger="load" hx-swap="innerHTML">
+    <div class="llm-summary-loading">
+      <div class="spinner"></div>
+      <span>Contacting AI analyst...</span>
+    </div>
+  </div>
+</section>"#,
         dashboard_live_html(model)
     )
 }
@@ -1838,5 +1853,141 @@ fn truncate(value: &str, max: usize) -> String {
         value.to_string()
     } else {
         format!("{}...", &value[..max])
+    }
+}
+
+async fn llm_summary(state: web::Data<AppState>, req: HttpRequest) -> AppResult<HttpResponse> {
+    require_auth(&state.config, &req)?;
+    let summary_guard = state
+        .live_llm_summary
+        .lock()
+        .map_err(|_| AppError("LLM summary lock poisoned".to_string()))?;
+    let running = state.live_llm_running.load(Ordering::SeqCst);
+
+    let html = if running {
+        r##"<div class="llm-summary-loading" hx-get="/dashboard/llm-summary" hx-trigger="every 2s" hx-target="#llm-summary-container" hx-swap="innerHTML">
+            <div class="spinner"></div>
+            <span>AI analyst is reviewing live telemetry (this may take up to 20 seconds)...</span>
+        </div>"##.to_string()
+    } else {
+        match summary_guard.as_ref() {
+            Some(summary) => {
+                format!(
+                    r##"<div class="llm-summary-content">
+                        <pre>{}</pre>
+                        <button hx-post="/dashboard/llm-summary/generate" hx-target="#llm-summary-container" hx-swap="innerHTML" style="margin-top: 14px;">Regenerate Summary</button>
+                    </div>"##,
+                    encode_text(summary)
+                )
+            }
+            None => {
+                r##"<div class="llm-summary-empty">
+                    <p>No live AI summary has been generated yet.</p>
+                    <button hx-post="/dashboard/llm-summary/generate" hx-target="#llm-summary-container" hx-swap="innerHTML">Generate Live AI Summary</button>
+                </div>"##.to_string()
+            }
+        }
+    };
+
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html))
+}
+
+async fn generate_llm_summary(state: web::Data<AppState>, req: HttpRequest) -> AppResult<HttpResponse> {
+    require_auth(&state.config, &req)?;
+    if state.live_llm_running.swap(true, Ordering::SeqCst) {
+        return Ok(HttpResponse::Ok()
+            .content_type("text/html; charset=utf-8")
+            .body(r##"<div class="llm-summary-loading" hx-get="/dashboard/llm-summary" hx-trigger="every 2s" hx-target="#llm-summary-container" hx-swap="innerHTML">
+                <div class="spinner"></div>
+                <span>AI analyst is already running...</span>
+            </div>"##.to_string()));
+    }
+
+    let events = match get_latest_ebpf_raw_events(&state.config, 5) {
+        Ok(events) => events,
+        Err(err) => {
+            state.live_llm_running.store(false, Ordering::SeqCst);
+            return Err(err);
+        }
+    };
+
+    if events.is_empty() {
+        state.live_llm_running.store(false, Ordering::SeqCst);
+        return Ok(HttpResponse::Ok()
+            .content_type("text/html; charset=utf-8")
+            .body(r##"<div class="llm-summary-empty">
+                <p>No live eBPF events found in the database to summarize.</p>
+                <button hx-post="/dashboard/llm-summary/generate" hx-target="#llm-summary-container" hx-swap="innerHTML">Generate Live AI Summary</button>
+            </div>"##.to_string()));
+    }
+
+    let state_for_task = state.clone();
+    tokio::spawn(async move {
+        let result = run_llm_summarize_process(&state_for_task.config, events).await;
+        if let Ok(mut summary_guard) = state_for_task.live_llm_summary.lock() {
+            match result {
+                Ok(summary) => {
+                    *summary_guard = Some(summary);
+                }
+                Err(err) => {
+                    *summary_guard = Some(format!("Error generating summary: {}", err));
+                }
+            }
+        }
+        state_for_task.live_llm_running.store(false, Ordering::SeqCst);
+    });
+
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(r##"<div class="llm-summary-loading" hx-get="/dashboard/llm-summary" hx-trigger="every 2s" hx-target="#llm-summary-container" hx-swap="innerHTML">
+            <div class="spinner"></div>
+            <span>AI analyst is reviewing live telemetry (this may take up to 20 seconds)...</span>
+        </div>"##.to_string()))
+}
+
+fn get_latest_ebpf_raw_events(config: &Config, limit: usize) -> AppResult<Vec<String>> {
+    let conn = Connection::open(&config.db_path)?;
+    let mut stmt = conn.prepare("SELECT raw_event FROM ebpf_events ORDER BY timestamp DESC LIMIT ?1")?;
+    let rows = stmt.query_map(params![limit as i64], |row| row.get::<_, Option<String>>(0))?;
+    let mut events = Vec::new();
+    for row in rows {
+        if let Ok(Some(event_str)) = row {
+            events.push(event_str);
+        }
+    }
+    Ok(events)
+}
+
+async fn run_llm_summarize_process(_config: &Config, events: Vec<String>) -> AppResult<String> {
+    use tokio::io::AsyncWriteExt;
+
+    let mut child = Command::new("python3")
+        .args(&["-m", "honeypot_ai", "llm-summarize", "-", "--max-events", "5"])
+        .env("PYTHONPATH", "src")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| AppError(format!("Failed to spawn llm-summarize: {}", err)))?;
+
+    let mut stdin = child.stdin.take().ok_or_else(|| AppError("Failed to open stdin for llm-summarize".to_string()))?;
+
+    let events_text = events.join("\n");
+    stdin.write_all(events_text.as_bytes()).await
+        .map_err(|err| AppError(format!("Failed to write to llm-summarize stdin: {}", err)))?;
+    stdin.flush().await
+        .map_err(|err| AppError(format!("Failed to flush llm-summarize stdin: {}", err)))?;
+    drop(stdin);
+
+    let output = child.wait_with_output().await
+        .map_err(|err| AppError(format!("Failed to wait for llm-summarize: {}", err)))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(AppError(format!("llm-summarize failed: {}", stderr)))
     }
 }

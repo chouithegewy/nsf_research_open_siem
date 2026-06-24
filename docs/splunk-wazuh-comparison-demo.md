@@ -208,6 +208,9 @@ Implemented now:
 - Splunk HEC-compatible export for analysis reports.
 - Wazuh-format alert export.
 - `wazuh-stream` file tailer for near-real-time Wazuh alert ingestion.
+- `splunk-stream` file tailer for near-real-time Splunk ingestion: appends a
+  Splunk HEC-format NDJSON file for a Splunk file monitor and optionally pushes
+  the same events to HEC when `--splunk-hec-url`/`--splunk-token` are supplied.
 - Local auto-refresh Wazuh dashboard preview.
 - Wazuh dashboard saved-object bundle.
 - MISP push and MISP pull to Wazuh CDB list files.
@@ -246,20 +249,24 @@ when the tailed file contains eBPF records exclusively.
 
 3. Start a Splunk ingest path.
 
-Current code supports direct Splunk HEC export for analyzed files:
+Run the continuous Splunk tailer against the same demo source file. It mirrors
+`wazuh-stream`: it appends a Splunk HEC-format NDJSON file for a Splunk file
+monitor and, when HEC credentials are supplied, also pushes each batch to HEC:
 
 ```bash
 SPLUNK_HEC_URL="$SPLUNK_HEC_URL" \
 SPLUNK_HEC_TOKEN="$SPLUNK_HEC_TOKEN" \
 SPLUNK_INDEX="$SPLUNK_INDEX" \
-PYTHONPATH=src python3 -m honeypot_ai analyze \
-  --format splunk \
-  /srv/honeypot-ai/demo/source.ndjson
+PYTHONPATH=src python3 -m honeypot_ai splunk-stream \
+  /srv/honeypot-ai/demo/source.ndjson \
+  --output /var/log/honeypot-ai/splunk-events.ndjson \
+  --state-file /var/lib/honeypot-ai/demo-splunk-stream.state.json \
+  --poll-seconds 1
 ```
 
-For a live side-by-side demo, either configure Splunk to monitor the same
-append-only source file or add a small tail-to-HEC wrapper before the final
-presentation.
+Omit `--splunk-hec-url`/`--splunk-token` to run file-monitor only; supply them to
+also push directly to HEC. A one-shot `analyze --format splunk` export remains
+available for batch files.
 
 4. Append benign demo events.
 
@@ -500,8 +507,9 @@ detection_rate = detected_malicious_scenarios / total_malicious_scenarios
 
 Highest-value gaps:
 
-1. Add a Splunk continuous tail-to-HEC path, or document the Splunk file monitor
-   configuration used on the research server.
+1. Done — `splunk-stream` provides the continuous Splunk tail-to-HEC / file-monitor
+   path. Remaining: confirm the Splunk file monitor (or HEC token) is configured on
+   the research server to consume `--output`.
 2. Add a scenario runner that appends demo events with a fresh `run_id` and
    `scenario_id`.
 3. Verify Wazuh dashboard import and rule matches on the research server.

@@ -1,0 +1,24 @@
+[Unit]
+Description=Honeypot eBPF sensor stream for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/%i/nsf_research_ebpf
+Environment=RUST_BACKTRACE=1
+ExecStartPre=/usr/bin/mkdir -p /home/%i/nsf_research_ebpf/output
+ExecStart=/home/%i/nsf_research_ebpf/bin/honeypot-ebpf capture \
+  --config config/ebpf-sensor.toml \
+  --probe-object bpf/ebpf-sensor-ebpf \
+  --duration-seconds 300 \
+  --stream-output output/ebpf-live-stream.ndjson
+Restart=always
+RestartSec=2
+StartLimitIntervalSec=0
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

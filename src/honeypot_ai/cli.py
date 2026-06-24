@@ -36,6 +36,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_misp_pull_parser(subparsers.add_parser("misp-pull", help="Pull MISP indicators into Wazuh CDB lists"))
     _add_wazuh_preview_parser(subparsers.add_parser("wazuh-preview", help="Render a local Wazuh dashboard preview"))
     _add_wazuh_stream_parser(subparsers.add_parser("wazuh-stream", help="Tail logs into a Wazuh alert stream"))
+    _add_splunk_stream_parser(subparsers.add_parser("splunk-stream", help="Tail logs into a Splunk HEC event stream"))
+    _add_llm_summarize_parser(subparsers.add_parser("llm-summarize", help="Summarize events using the research-server LLM"))
     return parser
 
 
@@ -338,6 +340,42 @@ def _add_wazuh_stream_parser(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_splunk_stream_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("paths", nargs="+", help="Raw NDJSON files to tail")
+    _add_common_source_args(parser)
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="build/splunk-live/events.ndjson",
+        help="Splunk HEC-format NDJSON output path for file-monitor ingestion. Defaults to build/splunk-live/events.ndjson.",
+    )
+    parser.add_argument("--state-file", help="Offset state file. Defaults to <output>.state.json.")
+    parser.add_argument("--poll-seconds", type=float, default=2.0, help="Polling interval for continuous mode.")
+    parser.add_argument("--once", action="store_true", help="Process current appended lines once and exit.")
+    parser.add_argument(
+        "--splunk-hec-url",
+        default=os.getenv("SPLUNK_HEC_URL"),
+        help="Optional Splunk HEC base URL. When set with --splunk-token, events are also pushed to HEC.",
+    )
+    parser.add_argument("--splunk-token", default=os.getenv("SPLUNK_HEC_TOKEN"), help="Splunk HEC token")
+    parser.add_argument("--splunk-index", default=os.getenv("SPLUNK_INDEX"), help="Splunk target index")
+    parser.add_argument(
+        "--splunk-source",
+        default=os.getenv("SPLUNK_SOURCE", "honeypot-ai"),
+        help="Splunk source value",
+    )
+    parser.add_argument(
+        "--splunk-sourcetype",
+        default=os.getenv("SPLUNK_SOURCETYPE", "honeypot:analysis"),
+        help="Splunk sourcetype prefix",
+    )
+    parser.add_argument(
+        "--splunk-host",
+        default=os.getenv("SPLUNK_HOST", "honeypot-ai"),
+        help="Fallback Splunk host value",
+    )
+
+
 COMMANDS = {
     "analyze",
     "dataset",
@@ -350,6 +388,8 @@ COMMANDS = {
     "misp-pull",
     "wazuh-preview",
     "wazuh-stream",
+    "splunk-stream",
+    "llm-summarize",
 }
 
 
@@ -380,6 +420,10 @@ def main(argv: list[str] | None = None) -> int:
         return _wazuh_preview(args)
     if args.command == "wazuh-stream":
         return _wazuh_stream(args)
+    if args.command == "splunk-stream":
+        return _splunk_stream(args)
+    if args.command == "llm-summarize":
+        return _llm_summarize(args)
     if args.command in {None, "analyze"}:
         if args.command is None:
             parser.print_help()
@@ -388,10 +432,42 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
+
+
 def _analyze(args: argparse.Namespace) -> int:
     try:
         events = parse_paths(args.paths, source_hint=args.source)
-        report = analyze_events(events)
+
+        # Wire LLM summary if enabled
+        from honeypot_ai.llm import LLMClient
+        client = LLMClient()
+        llm_summary = None
+        if client.is_enabled() and events:
+            raw_dicts = []
+            for e in events:
+                if e.raw:
+                    raw_dicts.append(e.raw)
+                else:
+                    event_dict = {
+                        "source": e.source,
+                        "event_type": e.event_type,
+                        "timestamp": e.timestamp.isoformat() if e.timestamp else None,
+                        "src_ip": e.src_ip,
+                        "src_port": e.src_port,
+                        "dest_ip": e.dest_ip,
+                        "dest_port": e.dest_port,
+                        "protocol": e.protocol,
+                        "username": e.username,
+                        "password": e.password,
+                        "command": e.command,
+                        "url": e.url,
+                        "domain": e.domain,
+                        "filename": e.filename,
+                    }
+                    raw_dicts.append({k: v for k, v in event_dict.items() if v is not None})
+            llm_summary = client.summarize_events(raw_dicts[:100])
+
+        report = analyze_events(events, llm_summary=llm_summary)
     except (OSError, ValueError) as exc:
         print(f"honeypot-ai: {exc}", file=sys.stderr)
         return 2
@@ -764,6 +840,54 @@ def _wazuh_stream(args: argparse.Namespace) -> int:
     return 0
 
 
+def _splunk_stream(args: argparse.Namespace) -> int:
+    from honeypot_ai.realtime import splunk_stream_forever, splunk_stream_once
+
+    if bool(args.splunk_hec_url) != bool(args.splunk_token):
+        print("honeypot-ai splunk-stream: --splunk-hec-url and --splunk-token are both required", file=sys.stderr)
+        return 2
+
+    stream_kwargs = {
+        "output_path": args.output,
+        "state_path": args.state_file,
+        "source_hint": args.source,
+        "hec_url": args.splunk_hec_url or None,
+        "hec_token": args.splunk_token or None,
+        "index": args.splunk_index,
+        "source": args.splunk_source,
+        "sourcetype": args.splunk_sourcetype,
+        "host": args.splunk_host,
+    }
+
+    try:
+        if args.once:
+            result = splunk_stream_once(args.paths, **stream_kwargs)
+            print(
+                "Processed {} raw line(s), {} parsed event(s), {} Splunk HEC event(s) ({} pushed) into {}".format(
+                    result.raw_lines,
+                    result.parsed_events,
+                    result.hec_events,
+                    result.sent_events,
+                    args.output,
+                ),
+                file=sys.stderr,
+            )
+            return 0
+
+        print(
+            f"Streaming {len(args.paths)} path(s) to {args.output}; press Ctrl-C to stop",
+            file=sys.stderr,
+        )
+        splunk_stream_forever(args.paths, poll_seconds=args.poll_seconds, **stream_kwargs)
+    except KeyboardInterrupt:
+        print("Stopped Splunk stream", file=sys.stderr)
+        return 0
+    except (ValueError, RuntimeError) as exc:
+        print(f"honeypot-ai splunk-stream: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def _write_alert_output(alerts: object, output_path: str | None, fmt: str, json_writer: object) -> str | None:
     if fmt == "wazuh":
         payload = ml_alerts_to_wazuh_ndjson(alerts)  # type: ignore[arg-type]
@@ -966,3 +1090,108 @@ def _format_metric(value: object) -> str:
     if isinstance(value, (float, int)):
         return f"{float(value):.4f}"
     return str(value)
+
+
+def _add_llm_summarize_parser(parser: argparse.ArgumentParser) -> None:
+    _add_common_source_args(parser)
+    parser.add_argument("paths", nargs="*", default=["-"], help="NDJSON files or directories to analyze, or '-' for stdin")
+    parser.add_argument("--output", "-o", help="Write the LLM summary to a file instead of stdout")
+    parser.add_argument("--max-events", type=int, default=100, help="Maximum number of events to summarize")
+    parser.add_argument("--system-prompt", help="Override the default system prompt")
+
+
+def _llm_summarize(args: argparse.Namespace) -> int:
+    import sys
+    from pathlib import Path
+    from honeypot_ai.llm import LLMClient
+
+    events = []
+
+    # Read NDJSON lines
+    if not args.paths or args.paths == ["-"]:
+        if not sys.stdin.isatty():
+            for line in sys.stdin:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                try:
+                    events.append(json.loads(stripped))
+                except json.JSONDecodeError as exc:
+                    print(f"honeypot-ai llm-summarize: error parsing JSON from stdin: {exc}", file=sys.stderr)
+        else:
+            print("honeypot-ai llm-summarize: no paths provided and stdin is empty / a tty", file=sys.stderr)
+            return 2
+    else:
+        for path_str in args.paths:
+            path = Path(path_str)
+            if path.is_file():
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            stripped = line.strip()
+                            if not stripped or stripped.startswith("#"):
+                                continue
+                            try:
+                                events.append(json.loads(stripped))
+                            except json.JSONDecodeError as exc:
+                                print(f"honeypot-ai llm-summarize: error parsing JSON in {path_str}: {exc}", file=sys.stderr)
+                except OSError as exc:
+                    print(f"honeypot-ai llm-summarize: error reading {path_str}: {exc}", file=sys.stderr)
+                    return 2
+            elif path.is_dir():
+                for file_path in sorted(path.rglob("*")):
+                    if file_path.is_file():
+                        try:
+                            with open(file_path, "r", encoding="utf-8") as f:
+                                for line in f:
+                                    stripped = line.strip()
+                                    if not stripped or stripped.startswith("#"):
+                                        continue
+                                    try:
+                                        events.append(json.loads(stripped))
+                                    except json.JSONDecodeError:
+                                        pass
+                        except OSError:
+                            pass
+            else:
+                print(f"honeypot-ai llm-summarize: path not found: {path_str}", file=sys.stderr)
+                return 2
+
+    if not events:
+        print("honeypot-ai llm-summarize: no events found to summarize", file=sys.stderr)
+        return 0
+
+    if args.max_events and len(events) > args.max_events:
+        events = events[:args.max_events]
+
+    client = LLMClient()
+    if not client.is_enabled():
+        print("honeypot-ai llm-summarize: LLM client is disabled or LLM_API_KEY environment variable is not set.", file=sys.stderr)
+        return 2
+
+    kwargs = {}
+    if args.system_prompt:
+        kwargs["system_prompt"] = args.system_prompt
+
+    try:
+        summary = client.summarize_events(events, **kwargs)
+    except Exception as exc:
+        print(f"honeypot-ai llm-summarize: LLM summarization failed: {exc}", file=sys.stderr)
+        return 2
+
+    if not summary:
+        print("honeypot-ai llm-summarize: received empty summary from LLM", file=sys.stderr)
+        return 2
+
+    if args.output:
+        try:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(summary, encoding="utf-8")
+        except OSError as exc:
+            print(f"honeypot-ai llm-summarize: error writing output to {args.output}: {exc}", file=sys.stderr)
+            return 2
+    else:
+        print(summary)
+
+    return 0

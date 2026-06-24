@@ -1,11 +1,13 @@
 use chrono::Utc;
 use duckdb::{params, Connection};
-use ebpf_sensor_common::{event_from_json_line, event_to_ndjson, EbpfEvent, SCHEMA_VERSION};
+use ebpf_sensor_common::{
+    event_from_json_line, event_to_ndjson, event_write_ndjson, EbpfEvent, SCHEMA_VERSION,
+};
 use serde::Serialize;
 use serde_json::json;
 use std::env;
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 pub type Result<T> = std::result::Result<T, String>;
@@ -743,8 +745,11 @@ fn capture_live<W: Write, E: Write>(
     let mut streaming_writer = stream_output_path
         .map(StreamingEventWriter::append)
         .transpose()?;
-    let keep_events = output_path.is_some() || db_path.is_some() || stream_output_path.is_none();
+    let mut streaming_db = db_path.map(StreamingDbWriter::open).transpose()?;
+    let keep_events = output_path.is_some()
+        || (streaming_db.is_none() && stream_output_path.is_none());
     let mut events = Vec::new();
+    let mut db_count: usize = 0;
     writeln!(
         stderr,
         "attached_probes={attached} duration_seconds={duration_seconds}"
@@ -762,6 +767,10 @@ fn capture_live<W: Write, E: Write>(
                 if let Some(writer) = streaming_writer.as_mut() {
                     writer.write_event(&event)?;
                 }
+                if let Some(db) = streaming_db.as_mut() {
+                    db.insert_event(&event)?;
+                    db_count += 1;
+                }
                 if keep_events {
                     events.push(event);
                 }
@@ -774,7 +783,7 @@ fn capture_live<W: Write, E: Write>(
 
     if let Some(path) = output_path {
         write_events(path, &events)?;
-    } else {
+    } else if streaming_writer.is_none() {
         for event in &events {
             write!(
                 stdout,
@@ -784,9 +793,8 @@ fn capture_live<W: Write, E: Write>(
             .map_err(|err| err.to_string())?;
         }
     }
-    if let Some(db) = db_path {
-        let inserted = insert_events(db, &events)?;
-        writeln!(stderr, "Stored {inserted} eBPF event(s) in {db}")
+    if db_count > 0 {
+        writeln!(stderr, "Stored {db_count} eBPF event(s) in DB (real-time)")
             .map_err(|err| err.to_string())?;
     }
     Ok(())
@@ -875,7 +883,7 @@ fn read_events(path: &str, config: &Config) -> Result<Vec<EbpfEvent>> {
 
 pub struct StreamingEventWriter {
     output: PathBuf,
-    file: File,
+    writer: BufWriter<File>,
 }
 
 impl StreamingEventWriter {
@@ -887,18 +895,19 @@ impl StreamingEventWriter {
             .append(true)
             .open(&output)
             .map_err(|err| format!("{}: {err}", output.display()))?;
-        Ok(Self { output, file })
+        Ok(Self {
+            output,
+            writer: BufWriter::new(file),
+        })
     }
 
+    /// Serialize an event directly into the output file as a single NDJSON
+    /// line and flush immediately so downstream tailers see it without delay.
+    /// Uses `serde_json::to_writer` under the hood — no intermediate `String`.
     pub fn write_event(&mut self, event: &EbpfEvent) -> Result<()> {
-        self.file
-            .write_all(
-                event_to_ndjson(event)
-                    .map_err(|err| err.to_string())?
-                    .as_bytes(),
-            )
+        event_write_ndjson(event, &mut self.writer)
             .map_err(|err| format!("{}: {err}", self.output.display()))?;
-        self.file
+        self.writer
             .flush()
             .map_err(|err| format!("{}: {err}", self.output.display()))
     }
@@ -935,45 +944,68 @@ fn ensure_parent_dir(path: &Path) -> Result<()> {
 }
 
 fn insert_events(db_path: &str, events: &[EbpfEvent]) -> Result<usize> {
-    ensure_parent_dir(Path::new(db_path))?;
-    let conn = Connection::open(db_path).map_err(|err| err.to_string())?;
-    init_db(&conn)?;
-    let mut stmt = conn
-        .prepare(
-            "INSERT OR REPLACE INTO ebpf_events VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
-        )
-        .map_err(|err| err.to_string())?;
+    let mut db = StreamingDbWriter::open(db_path)?;
     for event in events {
-        let id = event_id(event);
-        stmt.execute(params![
-            id,
-            i64::from(event.schema_version),
-            event.timestamp,
-            event.host,
-            event.event_type,
-            event.pid,
-            event.ppid,
-            event.uid,
-            event.gid,
-            event.comm,
-            event.binary,
-            serde_json::to_string(&event.arguments_sample).map_err(|err| err.to_string())?,
-            event.argv_truncated,
-            event.cgroup_id,
-            event.container_id,
-            event.src_ip,
-            event.src_port.map(i64::from),
-            event.dest_ip,
-            event.dest_port.map(i64::from),
-            event.protocol,
-            event.filename,
-            event.access_type,
-            event.severity_hint,
-            serde_json::to_string(&event.raw).map_err(|err| err.to_string())?,
-        ])
-        .map_err(|err| err.to_string())?;
+        db.insert_event(event)?;
     }
     Ok(events.len())
+}
+
+/// Streaming database writer that inserts events one at a time into
+/// DuckDB.  Keeps the connection and prepared statement open across
+/// calls so the dashboard sees rows immediately.
+pub struct StreamingDbWriter {
+    db_path: String,
+    conn: Connection,
+}
+
+impl StreamingDbWriter {
+    pub fn open(db_path: &str) -> Result<Self> {
+        ensure_parent_dir(Path::new(db_path))?;
+        let conn = Connection::open(db_path).map_err(|err| err.to_string())?;
+        init_db(&conn)?;
+        Ok(Self {
+            db_path: db_path.to_string(),
+            conn,
+        })
+    }
+
+    /// Insert a single event into the database and return immediately.
+    pub fn insert_event(&mut self, event: &EbpfEvent) -> Result<()> {
+        let id = event_id(event);
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO ebpf_events VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+                params![
+                    id,
+                    i64::from(event.schema_version),
+                    event.timestamp,
+                    event.host,
+                    event.event_type,
+                    event.pid,
+                    event.ppid,
+                    event.uid,
+                    event.gid,
+                    event.comm,
+                    event.binary,
+                    serde_json::to_string(&event.arguments_sample).map_err(|err| err.to_string())?,
+                    event.argv_truncated,
+                    event.cgroup_id,
+                    event.container_id,
+                    event.src_ip,
+                    event.src_port.map(i64::from),
+                    event.dest_ip,
+                    event.dest_port.map(i64::from),
+                    event.protocol,
+                    event.filename,
+                    event.access_type,
+                    event.severity_hint,
+                    serde_json::to_string(&event.raw).map_err(|err| err.to_string())?,
+                ],
+            )
+            .map_err(|err| format!("{}: {err}", self.db_path))?;
+        Ok(())
+    }
 }
 
 fn init_db(conn: &Connection) -> Result<()> {

@@ -20,15 +20,23 @@ class AnalysisReport:
     iocs: tuple[IOC, ...]
     findings: tuple[RiskFinding, ...]
     actors: tuple[ActorProfile, ...]
+    llm_summary: str | None = None
 
 
-def analyze_events(events: Iterable[Event]) -> AnalysisReport:
+def analyze_events(events: Iterable[Event], llm_summary: str | None = None) -> AnalysisReport:
     event_tuple = tuple(events)
     sessions = tuple(aggregate_sessions(event_tuple))
     iocs = tuple(extract_iocs(event_tuple))
     findings = tuple(score_sessions(event_tuple, sessions))
     actors = tuple(correlate_actors(event_tuple, findings))
-    return AnalysisReport(events=event_tuple, sessions=sessions, iocs=iocs, findings=findings, actors=actors)
+    return AnalysisReport(
+        events=event_tuple,
+        sessions=sessions,
+        iocs=iocs,
+        findings=findings,
+        actors=actors,
+        llm_summary=llm_summary,
+    )
 
 
 def report_to_markdown(report: AnalysisReport) -> str:
@@ -41,6 +49,12 @@ def report_to_markdown(report: AnalysisReport) -> str:
     lines.append(f"- IOCs extracted: {len(report.iocs)}")
     lines.append(f"- Findings: {len(report.findings)}")
     lines.append("")
+
+    if report.llm_summary:
+        lines.append("## LLM Threat Summary")
+        lines.append("")
+        lines.append(report.llm_summary)
+        lines.append("")
 
     if report.findings:
         lines.append("## Findings")

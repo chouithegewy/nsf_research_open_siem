@@ -8,6 +8,11 @@ from typing import Iterable, Mapping
 
 from honeypot_ai.parsers import parse_ndjson
 from honeypot_ai.report import analyze_events
+from honeypot_ai.splunk import (
+    report_to_splunk_hec_events,
+    report_to_splunk_ndjson,
+    send_to_splunk_hec,
+)
 from honeypot_ai.wazuh import report_to_wazuh_ndjson
 from honeypot_ai.wazuh_preview import DEFAULT_DASHBOARD_SPEC, write_dashboard_preview
 
@@ -17,6 +22,14 @@ class StreamResult:
     raw_lines: int
     parsed_events: int
     alert_events: int
+
+
+@dataclass(frozen=True)
+class SplunkStreamResult:
+    raw_lines: int
+    parsed_events: int
+    hec_events: int
+    sent_events: int
 
 
 def default_state_path(output_path: str | Path) -> Path:
@@ -102,6 +115,124 @@ def stream_forever(
             preview_output=preview_output,
             preview_spec=preview_spec,
             refresh_seconds=refresh_seconds,
+        )
+        time.sleep(poll_seconds)
+
+
+def splunk_stream_once(
+    paths: Iterable[str | Path],
+    *,
+    output_path: str | Path | None = None,
+    state_path: str | Path | None = None,
+    source_hint: str | None = None,
+    hec_url: str | None = None,
+    hec_token: str | None = None,
+    index: str | None = None,
+    source: str = "honeypot-ai",
+    sourcetype: str = "honeypot:analysis",
+    host: str = "honeypot-ai",
+    timeout_seconds: float = 10.0,
+) -> SplunkStreamResult:
+    if (hec_url is None) != (hec_token is None):
+        raise ValueError("hec_url and hec_token must be provided together")
+    if output_path is None and hec_url is None:
+        raise ValueError("splunk_stream_once requires output_path and/or HEC credentials")
+
+    if state_path is not None:
+        state_file = Path(state_path)
+    elif output_path is not None:
+        state_file = default_state_path(output_path)
+    else:
+        raise ValueError("state_path is required when no output_path is given")
+
+    offsets = _load_offsets(state_file)
+    raw_lines: list[str] = []
+    next_offsets = dict(offsets)
+
+    for raw_path in paths:
+        path = Path(raw_path)
+        offset = int(offsets.get(str(path), 0))
+        lines, new_offset = _read_new_complete_lines(path, offset)
+        if lines:
+            raw_lines.extend(lines)
+        next_offsets[str(path)] = new_offset
+
+    if not raw_lines:
+        _save_offsets(state_file, next_offsets)
+        return SplunkStreamResult(raw_lines=0, parsed_events=0, hec_events=0, sent_events=0)
+
+    events = list(parse_ndjson(raw_lines, source_hint=source_hint))
+    report = analyze_events(events)
+    hec_events = report_to_splunk_hec_events(
+        report,
+        index=index,
+        source=source,
+        sourcetype=sourcetype,
+        host=host,
+    )
+
+    if output_path is not None:
+        output = Path(output_path)
+        payload = report_to_splunk_ndjson(
+            report,
+            index=index,
+            source=source,
+            sourcetype=sourcetype,
+            host=host,
+        )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("a", encoding="utf-8") as handle:
+            handle.write(payload)
+            if payload and not payload.endswith("\n"):
+                handle.write("\n")
+
+    sent_events = 0
+    if hec_url is not None and hec_token is not None:
+        sent_events = send_to_splunk_hec(
+            hec_url,
+            hec_token,
+            hec_events,
+            timeout_seconds=timeout_seconds,
+        )
+
+    _save_offsets(state_file, next_offsets)
+
+    return SplunkStreamResult(
+        raw_lines=len(raw_lines),
+        parsed_events=len(events),
+        hec_events=len(hec_events),
+        sent_events=sent_events,
+    )
+
+
+def splunk_stream_forever(
+    paths: Iterable[str | Path],
+    *,
+    output_path: str | Path | None = None,
+    state_path: str | Path | None = None,
+    source_hint: str | None = None,
+    hec_url: str | None = None,
+    hec_token: str | None = None,
+    index: str | None = None,
+    source: str = "honeypot-ai",
+    sourcetype: str = "honeypot:analysis",
+    host: str = "honeypot-ai",
+    timeout_seconds: float = 10.0,
+    poll_seconds: float = 2.0,
+) -> None:
+    while True:
+        splunk_stream_once(
+            paths,
+            output_path=output_path,
+            state_path=state_path,
+            source_hint=source_hint,
+            hec_url=hec_url,
+            hec_token=hec_token,
+            index=index,
+            source=source,
+            sourcetype=sourcetype,
+            host=host,
+            timeout_seconds=timeout_seconds,
         )
         time.sleep(poll_seconds)
 
