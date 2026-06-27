@@ -19,6 +19,11 @@ HAS_ML_DEPS = importlib.util.find_spec("river") is not None and importlib.util.f
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._env_patch = patch.dict("os.environ", {"LLM_ENABLED": "false"})
+        self._env_patch.start()
+        self.addCleanup(self._env_patch.stop)
+
     def test_legacy_analyze_options_still_work(self) -> None:
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):

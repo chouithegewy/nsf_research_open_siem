@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import threading
 import time
+import os
 from typing import Any, Iterable, Mapping
 
 
@@ -55,10 +56,15 @@ _LLM_THREAD_ACTIVE = False
 def get_live_llm_summary(events: Iterable[Mapping[str, Any]]) -> str:
     global _LLM_SUMMARY_CACHE, _LLM_LAST_RUN, _LLM_THREAD_ACTIVE
 
-    from honeypot_ai.llm import LLMClient
-    client = LLMClient()
+    from honeypot_ai.llm import LLMClient, LLMConfig
+    import dotenv
+    dotenv.load_dotenv()
+    config = LLMConfig()
+    config.bearer_token = os.getenv("LLM_API_KEY", config.bearer_token)
+    client = LLMClient(config=config)
     if not client.is_enabled():
-        return "AI Analyst is disabled (LLM_API_KEY environment variable is not configured)."
+        return ""
+
 
     now = time.time()
     if _LLM_SUMMARY_CACHE is not None and (now - _LLM_LAST_RUN) < 30.0:
@@ -102,6 +108,8 @@ def get_live_llm_summary(events: Iterable[Mapping[str, Any]]) -> str:
                     _LLM_LAST_RUN = time.time()
             except Exception as exc:
                 _LLM_SUMMARY_CACHE = f"AI Analyst failed: {exc}"
+                _LLM_LAST_RUN = time.time()
+                print(f"LLM request failed: {exc}")
             finally:
                 _LLM_THREAD_ACTIVE = False
 
@@ -118,6 +126,7 @@ def render_dashboard_preview(
     *,
     refresh_seconds: int = 0,
 ) -> str:
+    events = list(events)
     model = build_preview_model(events)
     llm_summary = get_live_llm_summary(events)
     title = str(spec.get("name") or "Honeypot AI Single Pane")
@@ -333,12 +342,7 @@ def render_dashboard_preview(
       {_metric("MISP matches", model["misp_matches"])}
       {_metric("eBPF events", model["ebpf_events"])}
     </section>
-    <section class="panel" style="margin-bottom: 18px;">
-      <h2 style="margin-top: 0; color: var(--teal); font-weight: 700;">Live AI Threat Analyst Summary</h2>
-      <div style="background: #111827; color: #f3f4f6; border-radius: 8px; padding: 18px; font-family: monospace; font-size: 13.5px; white-space: pre-wrap; line-height: 1.5; border: 1px solid var(--line);">
-        {_html(llm_summary)}
-      </div>
-    </section>
+    {_ai_summary_panel(llm_summary)}
     <section class="grid">
       <div>
         {_panel("Alert Volume Over Time", _bars(model["timeline"], "teal"))}
@@ -547,6 +551,23 @@ def _minute_bucket(timestamp: str) -> str:
 def _metric(label: str, value: object) -> str:
     return f'<div class="metric"><span>{_html(label)}</span><strong>{_html(value)}</strong></div>'
 
+
+
+def _ai_summary_panel(summary: str) -> str:
+    if not summary:
+        return ""
+    return f'''
+    <section id="ai-summary-panel" class="panel" style="margin-bottom: 22px; position: relative; overflow: hidden; border: 1px solid rgba(15, 118, 110, 0.3); box-shadow: 0 4px 15px -3px rgba(15, 118, 110, 0.1);">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--teal), #06b6d4, var(--teal));"></div>
+      <h2 style="margin-top: 4px; color: var(--teal); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Live AI Threat Analyst Summary
+      </h2>
+      <div style="background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 20px; margin-top: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13.5px; white-space: pre-wrap; line-height: 1.6; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);">
+        {_html(summary)}
+      </div>
+    </section>
+    '''
 
 def _panel(title: str, body: str) -> str:
     return f'<section class="panel"><h2>{_html(title)}</h2>{body}</section>'

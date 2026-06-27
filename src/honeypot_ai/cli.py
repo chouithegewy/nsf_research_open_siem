@@ -1172,7 +1172,11 @@ def _llm_summarize(args: argparse.Namespace) -> int:
 
     client = LLMClient()
     if not client.is_enabled():
-        print("honeypot-ai llm-summarize: LLM client is disabled or LLM_API_KEY environment variable is not set.", file=sys.stderr)
+        print(
+            "honeypot-ai llm-summarize: LLM client is disabled. "
+            "Set LLM_ENABLED=true and LLM_ENDPOINT to a local/private LLM server.",
+            file=sys.stderr,
+        )
         return 2
 
     kwargs = {}

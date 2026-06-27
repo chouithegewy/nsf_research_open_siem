@@ -1,0 +1,156 @@
+name: honeypot-ai-podman-demo
+
+x-demo-image: &demo-image
+  build:
+    context: ../..
+    dockerfile: deploy/container-demo/Containerfile
+  image: localhost/honeypot-ai-container-demo:local
+
+x-demo-env: &demo-env
+  PYTHONPATH: /app/src
+  RAW_LOG: /data/raw/honeypot.ndjson
+  ALERT_LOG: /data/alerts/wazuh-alerts.ndjson
+  ML_ALERT_LOG: /data/alerts/ml-alerts.ndjson
+  DASHBOARD_OUTPUT: /dashboard/index.html
+  DASHBOARD_EVENT_PATHS: /data/alerts/wazuh-alerts.ndjson:/data/alerts/ml-alerts.ndjson
+  DASHBOARD_SPEC: /app/deploy/wazuh/dashboard/honeypot-ai-dashboard-spec.json
+  DASHBOARD_REFRESH_SECONDS: "5"
+  PROTECTED_CIDR: 10.70.0.0/24
+  LLM_ENDPOINT: ${DEMO_LLM_ENDPOINT:-http://llm-bridge:8080}
+  LLM_ENABLED: ${DEMO_LLM_ENABLED:-false}
+  LLM_MODEL: ${DEMO_LLM_MODEL:-}
+  LLM_BEARER_TOKEN: ${DEMO_LLM_BEARER_TOKEN:-}
+  LLM_TIMEOUT: ${DEMO_LLM_TIMEOUT:-60}
+  LLM_MAX_TOKENS: ${DEMO_LLM_MAX_TOKENS:-512}
+  LLM_DASHBOARD_TIMEOUT: ${DEMO_LLM_DASHBOARD_TIMEOUT:-20}
+
+services:
+  siem:
+    <<: *demo-image
+    command: ["/app/deploy/container-demo/bin/siem-loop.sh"]
+    environment:
+      <<: *demo-env
+      SIEM_POLL_SECONDS: ${SIEM_POLL_SECONDS:-2}
+    volumes:
+      - demo-data:/data
+    networks:
+      - backend
+    restart: unless-stopped
+
+  ml:
+    <<: *demo-image
+    command: ["/app/deploy/container-demo/bin/ml-loop.sh"]
+    environment:
+      <<: *demo-env
+      ML_POLL_SECONDS: ${ML_POLL_SECONDS:-5}
+      ML_WINDOW_SECONDS: ${ML_WINDOW_SECONDS:-60}
+      ML_THRESHOLD: ${ML_THRESHOLD:-0}
+    volumes:
+      - demo-data:/data
+    networks:
+      - backend
+    restart: unless-stopped
+
+  dashboard-renderer:
+    <<: *demo-image
+    command: ["python", "/app/deploy/container-demo/bin/dashboard_renderer.py"]
+    environment:
+      <<: *demo-env
+      RENDER_POLL_SECONDS: ${RENDER_POLL_SECONDS:-2}
+    depends_on:
+      #- llm-bridge
+      - siem
+      - ml
+    volumes:
+      - demo-data:/data
+      - demo-dashboard:/dashboard
+    networks:
+      - backend
+    restart: unless-stopped
+
+  dashboard:
+    image: docker.io/library/nginx:1.27-alpine
+    volumes:
+      - demo-dashboard:/usr/share/nginx/html:ro
+    networks:
+      - backend
+    restart: unless-stopped
+
+  #llm-bridge:
+  #  <<: *demo-image
+  #  command: ["python", "/app/deploy/container-demo/bin/llm_bridge.py"]
+  #  environment:
+  #    UPSTREAM_LLM_ENDPOINT: ${DEMO_UPSTREAM_LLM_ENDPOINT:-}
+  #    UPSTREAM_LLM_BEARER_TOKEN: ""
+  #    UPSTREAM_LLM_BEARER_TOKEN_FILE: /run/honeypot-demo.env
+  #    LLM_BRIDGE_TIMEOUT: ${DEMO_LLM_BRIDGE_TIMEOUT:-300}
+  #    LLM_BRIDGE_PORT: "8080"
+  #  volumes:
+  #    - ./.env:/run/honeypot-demo.env:ro
+  #  networks:
+  #    - backend
+  #  restart: unless-stopped
+
+  cowrie:
+    image: docker.io/cowrie/cowrie:${COWRIE_IMAGE_TAG:-latest}
+    hostname: cowrie-demo
+    volumes:
+      - cowrie-var:/cowrie/cowrie-git/var
+    networks:
+      backend:
+        ipv4_address: 10.70.0.10
+    restart: unless-stopped
+
+  reverse-proxy:
+    <<: *demo-image
+    command: ["python", "/app/deploy/container-demo/bin/reverse_proxy.py"]
+    environment:
+      HTTP_LISTEN_PORT: "80"
+      HTTP_UPSTREAM: http://dashboard:80
+      TCP_LISTEN_PORT: "2222"
+      TCP_UPSTREAM_HOST: cowrie
+      TCP_UPSTREAM_PORT: "2222"
+    depends_on:
+      - dashboard
+      - cowrie
+    ports:
+      - "${DEMO_DASHBOARD_PORT:-8888}:80"
+      - "${DEMO_SSH_PORT:-2222}:2222"
+    networks:
+      backend:
+      attack:
+        ipv4_address: 10.70.1.10
+    restart: unless-stopped
+
+  attacker:
+    <<: *demo-image
+    command: ["/app/deploy/container-demo/bin/attacker-demo.sh"]
+    environment:
+      RAW_LOG: /data/raw/honeypot.ndjson
+      ATTACKER_IP: 10.70.1.50
+      TARGET_IP: 10.70.0.10
+      PROXY_HOST: reverse-proxy
+      PROXY_HTTP_PORT: "80"
+      PROXY_SSH_PORT: "2222"
+    depends_on:
+      - reverse-proxy
+    volumes:
+      - demo-data:/data
+    networks:
+      attack:
+        ipv4_address: 10.70.1.50
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 10.70.0.0/24
+  attack:
+    ipam:
+      config:
+        - subnet: 10.70.1.0/24
+
+volumes:
+  cowrie-var:
+  demo-dashboard:
+  demo-data:

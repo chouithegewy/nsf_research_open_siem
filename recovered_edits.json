@@ -1,0 +1,17 @@
+[
+  {
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": false,
+      "Description": "Fix wazuh-stream deadlock where it skips building HTML if files haven't changed but the LLM hasn't run yet.",
+      "EndLine": 452,
+      "Instruction": "Force changed=True if the LLM cache is completely uninitialized (i.e., script just started).",
+      "ReplacementContent": "    if not changed and _LAST_PREVIEW_STATE[\"output_state\"] is not None and _LLM_SUMMARY_CACHE == _LAST_PREVIEW_STATE[\"llm_summary_cache\"]:\n        return current_file_states",
+      "StartLine": 451,
+      "TargetContent": "    if not changed and _LLM_SUMMARY_CACHE == _LAST_PREVIEW_STATE[\"llm_summary_cache\"]:\n        return current_file_states",
+      "TargetFile": "/home/david/projects/nsf_research/src/honeypot_ai/wazuh_preview.py",
+      "toolAction": "Fixing dashboard cache deadlock in wazuh_preview.py",
+      "toolSummary": "Fix dashboard cache deadlock"
+    }
+  }
+]

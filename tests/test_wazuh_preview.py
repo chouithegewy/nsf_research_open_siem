@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+import time
 import unittest
+from unittest.mock import patch
 
+import honeypot_ai.wazuh_preview as wazuh_preview
 from honeypot_ai.cli import main
 from honeypot_ai.wazuh_preview import build_preview_model, render_dashboard_preview, write_dashboard_preview
 
@@ -16,6 +19,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WazuhPreviewTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._env_patch = patch.dict("os.environ", {"LLM_ENABLED": "false"})
+        self._env_patch.start()
+        self.addCleanup(self._env_patch.stop)
+        wazuh_preview._LAST_PREVIEW_STATE = {
+            "file_states": {},
+            "llm_summary_cache": None,
+            "output_state": None,
+        }
+        wazuh_preview._LLM_SUMMARY_CACHE = None
+        wazuh_preview._LLM_LAST_RUN = 0.0
+        wazuh_preview._LLM_THREAD_ACTIVE = False
+        wazuh_preview._LLM_THREAD_STARTED_AT = 0.0
+
     def test_preview_model_counts_wazuh_shapes(self) -> None:
         events = [
             {
@@ -91,48 +108,56 @@ class WazuhPreviewTests(unittest.TestCase):
         self.assertEqual(event["raw_event"]["raw"], '{"container_id":"cowrie-demo","cgroup_id":"demo","ppid":998,"arguments_sample":["curl","https://example"]}')
 
     def test_preview_html_escapes_event_values(self) -> None:
-        html = render_dashboard_preview(
-            [
-                {
-                    "timestamp": "2026-06-23T18:30:00+00:00",
-                    "integration": "honeypot-ai",
-                    "kind": "ml_alert",
-                    "rule_name": "<script>alert(1)</script>",
-                    "severity": "high",
-                }
-            ],
-            {"name": "Test Dashboard", "data_view": "wazuh-alerts-*"},
-            refresh_seconds=3,
-        )
+        with patch.dict("os.environ", {"LLM_ENABLED": "false"}):
+            html = render_dashboard_preview(
+                [
+                    {
+                        "timestamp": "2026-06-23T18:30:00+00:00",
+                        "integration": "honeypot-ai",
+                        "kind": "ml_alert",
+                        "rule_name": "<script>alert(1)</script>",
+                        "severity": "high",
+                    }
+                ],
+                {"name": "Test Dashboard", "data_view": "wazuh-alerts-*"},
+                refresh_seconds=3,
+            )
 
         self.assertIn("Test Dashboard", html)
-        self.assertIn('<meta http-equiv="refresh" content="3">', html)
+        self.assertNotIn('http-equiv="refresh"', html)
+        self.assertIn('data-refresh-seconds="3"', html)
+        self.assertIn("refreshDashboardInBackground", html)
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html)
         self.assertNotIn("<script>alert(1)</script>", html)
 
     def test_preview_html_includes_event_filters_and_details(self) -> None:
-        html = render_dashboard_preview(
-            [
-                {
-                    "timestamp": "2026-06-23T18:31:00+00:00",
-                    "integration": "honeypot-ai",
-                    "kind": "ebpf_event",
-                    "event_type": "network_connect",
-                    "dest_ip": "203.0.113.9",
-                    "dest_port": 443,
-                    "comm": "curl",
-                    "session": "cowrie-demo",
-                }
-            ],
-            {"name": "Test Dashboard", "data_view": "wazuh-alerts-*"},
-        )
+        with patch.dict("os.environ", {"LLM_ENABLED": "false"}):
+            html = render_dashboard_preview(
+                [
+                    {
+                        "timestamp": "2026-06-23T18:31:00+00:00",
+                        "integration": "honeypot-ai",
+                        "kind": "ebpf_event",
+                        "event_type": "network_connect",
+                        "dest_ip": "203.0.113.9",
+                        "dest_port": 443,
+                        "comm": "curl",
+                        "session": "cowrie-demo",
+                    }
+                ],
+                {"name": "Test Dashboard", "data_view": "wazuh-alerts-*"},
+            )
 
         self.assertIn('id="filter-ebpf"', html)
         self.assertIn('id="event-detail-panel"', html)
         self.assertIn('id="event-data"', html)
+        self.assertIn('id="ai-summary-panel"', html)
+        self.assertIn("Live AI Threat Analyst Summary", html)
         self.assertIn("Related Event Window", html)
         self.assertIn("applyEventFilters", html)
         self.assertIn('data-event-index="0"', html)
+        self.assertIn('data-event-key=', html)
+        self.assertIn("sessionStorage", html)
 
     def test_write_dashboard_preview_creates_html(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -158,6 +183,95 @@ class WazuhPreviewTests(unittest.TestCase):
             self.assertEqual(summary["events"], 1)
             self.assertEqual(summary["high_confidence"], 1)
             self.assertIn("Honeypot AI Single Pane", output.read_text(encoding="utf-8"))
+
+    def test_write_dashboard_preview_skips_timer_only_llm_rebuild(self) -> None:
+        with TemporaryDirectory() as tmp:
+            alerts = Path(tmp) / "alerts.ndjson"
+            output = Path(tmp) / "index.html"
+            alerts.write_text(
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-23T18:30:00+00:00",
+                        "integration": "honeypot-ai",
+                        "kind": "ml_alert",
+                        "rule_name": "honeypot_ai_ml_alert_high",
+                        "severity": "high",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch.dict("os.environ", {"LLM_ENABLED": "false"}):
+                summary = write_dashboard_preview([alerts], output)
+
+            wazuh_preview._LLM_SUMMARY_CACHE = "cached LLM summary"
+            wazuh_preview._LLM_LAST_RUN = time.time() - 300.0
+            wazuh_preview._LLM_THREAD_ACTIVE = False
+            wazuh_preview._LAST_PREVIEW_STATE["llm_summary_cache"] = "cached LLM summary"
+            before_mtime = output.stat().st_mtime_ns
+
+            with patch("honeypot_ai.wazuh_preview.load_wazuh_events", side_effect=AssertionError("unexpected preview reload")):
+                repeated = write_dashboard_preview([alerts], output)
+
+            self.assertEqual(repeated, summary)
+            self.assertEqual(output.stat().st_mtime_ns, before_mtime)
+
+    def test_write_dashboard_preview_rewrites_externally_changed_output(self) -> None:
+        with TemporaryDirectory() as tmp:
+            alerts = Path(tmp) / "alerts.ndjson"
+            output = Path(tmp) / "index.html"
+            alerts.write_text(
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-23T18:30:00+00:00",
+                        "integration": "honeypot-ai",
+                        "kind": "ml_alert",
+                        "rule_name": "honeypot_ai_ml_alert_high",
+                        "severity": "high",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            summary = write_dashboard_preview([alerts], output)
+            output.write_text("stale transient dashboard", encoding="utf-8")
+
+            repeated = write_dashboard_preview([alerts], output)
+
+            self.assertEqual(repeated, summary)
+            self.assertIn("Honeypot AI Single Pane", output.read_text(encoding="utf-8"))
+            self.assertNotIn("stale transient dashboard", output.read_text(encoding="utf-8"))
+
+    def test_live_llm_summary_times_out_stale_worker(self) -> None:
+        wazuh_preview._LLM_THREAD_ACTIVE = True
+        wazuh_preview._LLM_THREAD_STARTED_AT = time.time() - 30.0
+        wazuh_preview._LLM_SUMMARY_CACHE = None
+        wazuh_preview._LLM_LAST_RUN = 0.0
+
+        with patch.dict(
+            "os.environ",
+            {
+                "LLM_ENABLED": "true",
+                "LLM_ENDPOINT": "http://localhost:11434",
+                "LLM_DASHBOARD_TIMEOUT": "1",
+            },
+            clear=False,
+        ):
+            summary = wazuh_preview.get_live_llm_summary(
+                [
+                    {
+                        "timestamp": "2026-06-23T18:30:00+00:00",
+                        "integration": "honeypot-ai",
+                        "kind": "ml_alert",
+                        "rule_name": "honeypot_ai_ml_alert_high",
+                    }
+                ]
+            )
+
+        self.assertIn("AI Analyst request exceeded 1 seconds", summary)
+        self.assertFalse(wazuh_preview._LLM_THREAD_ACTIVE)
 
     def test_wazuh_preview_cli_writes_output(self) -> None:
         with TemporaryDirectory() as tmp:

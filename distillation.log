@@ -1,0 +1,979 @@
+Loaded 65997 total examples. Distilling ground truths for 500 examples...
+Targeting Endpoint: http://10.20.10.117:8080/api/chat/completions
+Targeting Model: meta/llama-3.3-70b
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[1/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[2/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[3/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[4/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[5/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[6/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[7/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[8/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[9/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[10/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[11/500] Failed to generate summary.
+Error querying LLM: <urlopen error [Errno 110] Connection timed out>
+[12/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[13/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[14/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[15/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[16/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[17/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[18/500] Failed to generate summary.
+[19/500] Successfully generated summary.
+[20/500] Successfully generated summary.
+Error querying LLM: timed out
+[21/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[22/500] Failed to generate summary.
+Error querying LLM: timed out
+[23/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[24/500] Failed to generate summary.
+[25/500] Successfully generated summary.
+[26/500] Successfully generated summary.
+Error querying LLM: timed out
+[27/500] Failed to generate summary.
+[28/500] Successfully generated summary.
+[29/500] Successfully generated summary.
+[30/500] Successfully generated summary.
+[31/500] Successfully generated summary.
+[32/500] Successfully generated summary.
+[33/500] Successfully generated summary.
+[34/500] Successfully generated summary.
+[35/500] Successfully generated summary.
+[36/500] Successfully generated summary.
+[37/500] Successfully generated summary.
+[38/500] Successfully generated summary.
+[39/500] Successfully generated summary.
+[40/500] Successfully generated summary.
+[41/500] Successfully generated summary.
+[42/500] Successfully generated summary.
+[43/500] Successfully generated summary.
+[44/500] Successfully generated summary.
+[45/500] Successfully generated summary.
+[46/500] Successfully generated summary.
+[47/500] Successfully generated summary.
+[48/500] Successfully generated summary.
+[49/500] Successfully generated summary.
+[50/500] Successfully generated summary.
+Error querying LLM: timed out
+[51/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[52/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[53/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[54/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[55/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[56/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[57/500] Failed to generate summary.
+Error querying LLM: HTTP Error 500: Internal Server Error
+[58/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[59/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[60/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[61/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[62/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[63/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[64/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[65/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[66/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[67/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[68/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[69/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[70/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[71/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[72/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[73/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[74/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[75/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[76/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[77/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[78/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[79/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[80/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[81/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[82/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[83/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[84/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[85/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[86/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[87/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[88/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[89/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[90/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[91/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[92/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[93/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[94/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[95/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[96/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[97/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[98/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[99/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[100/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[101/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[102/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[103/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[104/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[105/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[106/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[107/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[108/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[109/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[110/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[111/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[112/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[113/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[114/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[115/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[116/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[117/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[118/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[119/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[120/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[121/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[122/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[123/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[124/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[125/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[126/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[127/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[128/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[129/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[130/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[131/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[132/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[133/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[134/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[135/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[136/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[137/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[138/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[139/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[140/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[141/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[142/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[143/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[144/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[145/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[146/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[147/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[148/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[149/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[150/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[151/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[152/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[153/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[154/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[155/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[156/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[157/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[158/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[159/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[160/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[161/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[162/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[163/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[164/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[165/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[166/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[167/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[168/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[169/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[170/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[171/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[172/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[173/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[174/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[175/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[176/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[177/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[178/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[179/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[180/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[181/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[182/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[183/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[184/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[185/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[186/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[187/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[188/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[189/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[190/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[191/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[192/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[193/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[194/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[195/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[196/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[197/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[198/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[199/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[200/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[201/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[202/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[203/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[204/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[205/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[206/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[207/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[208/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[209/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[210/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[211/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[212/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[213/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[214/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[215/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[216/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[217/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[218/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[219/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[220/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[221/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[222/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[223/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[224/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[225/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[226/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[227/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[228/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[229/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[230/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[231/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[232/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[233/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[234/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[235/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[236/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[237/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[238/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[239/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[240/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[241/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[242/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[243/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[244/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[245/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[246/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[247/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[248/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[249/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[250/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[251/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[252/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[253/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[254/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[255/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[256/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[257/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[258/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[259/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[260/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[261/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[262/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[263/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[264/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[265/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[266/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[267/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[268/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[269/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[270/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[271/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[272/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[273/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[274/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[275/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[276/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[277/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[278/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[279/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[280/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[281/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[282/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[283/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[284/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[285/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[286/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[287/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[288/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[289/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[290/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[291/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[292/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[293/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[294/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[295/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[296/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[297/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[298/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[299/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[300/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[301/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[302/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[303/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[304/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[305/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[306/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[307/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[308/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[309/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[310/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[311/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[312/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[313/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[314/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[315/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[316/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[317/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[318/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[319/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[320/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[321/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[322/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[323/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[324/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[325/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[326/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[327/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[328/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[329/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[330/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[331/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[332/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[333/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[334/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[335/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[336/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[337/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[338/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[339/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[340/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[341/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[342/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[343/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[344/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[345/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[346/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[347/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[348/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[349/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[350/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[351/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[352/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[353/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[354/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[355/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[356/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[357/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[358/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[359/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[360/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[361/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[362/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[363/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[364/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[365/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[366/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[367/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[368/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[369/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[370/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[371/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[372/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[373/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[374/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[375/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[376/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[377/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[378/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[379/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[380/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[381/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[382/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[383/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[384/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[385/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[386/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[387/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[388/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[389/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[390/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[391/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[392/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[393/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[394/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[395/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[396/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[397/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[398/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[399/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[400/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[401/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[402/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[403/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[404/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[405/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[406/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[407/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[408/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[409/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[410/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[411/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[412/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[413/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[414/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[415/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[416/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[417/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[418/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[419/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[420/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[421/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[422/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[423/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[424/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[425/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[426/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[427/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[428/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[429/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[430/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[431/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[432/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[433/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[434/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[435/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[436/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[437/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[438/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[439/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[440/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[441/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[442/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[443/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[444/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[445/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[446/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[447/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[448/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[449/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[450/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[451/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[452/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[453/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[454/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[455/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[456/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[457/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[458/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[459/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[460/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[461/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[462/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[463/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[464/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[465/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[466/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[467/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[468/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[469/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[470/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[471/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[472/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[473/500] Failed to generate summary.
+Error querying LLM: HTTP Error 500: Internal Server Error
+[474/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[475/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[476/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[477/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[478/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[479/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[480/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[481/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[482/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[483/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[484/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[485/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[486/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[487/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[488/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[489/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[490/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[491/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[492/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[493/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[494/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[495/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[496/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[497/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[498/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[499/500] Failed to generate summary.
+Error querying LLM: HTTP Error 400: Bad Request
+[500/500] Failed to generate summary.
+
+Done! Successfully distilled 27 training examples.
+Saved to: distilled_dataset.jsonl

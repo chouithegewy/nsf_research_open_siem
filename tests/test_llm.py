@@ -7,13 +7,19 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from honeypot_ai.cli import main
-from honeypot_ai.llm import LLMClient, LLMConfig, LLMError
+from honeypot_ai.llm import LLMClient, LLMConfig
 
 
 class LLMTests(unittest.TestCase):
+    @patch.dict("os.environ", {}, clear=True)
+    def test_defaults_use_netbird_local_desktop_model(self) -> None:
+        config = LLMConfig()
+        self.assertEqual(config.endpoint, "http://10.20.10.117:8080")
+        self.assertEqual(config.model, "qwen/qwen3.5-9b")
+
     @patch.dict("os.environ", {
         "LLM_ENDPOINT": "http://test-server:1234",
-        "LLM_API_KEY": "test-key",
+        "LLM_BEARER_TOKEN": "test-token",
         "LLM_MODEL": "test-model",
         "LLM_ENABLED": "true",
         "LLM_TIMEOUT": "30"
@@ -21,7 +27,7 @@ class LLMTests(unittest.TestCase):
     def test_config_from_env(self) -> None:
         config = LLMConfig()
         self.assertEqual(config.endpoint, "http://test-server:1234")
-        self.assertEqual(config.api_key, "test-key")
+        self.assertEqual(config.bearer_token, "test-token")
         self.assertEqual(config.model, "test-model")
         self.assertTrue(config.enabled)
         self.assertEqual(config.timeout, 30)
@@ -38,7 +44,7 @@ class LLMTests(unittest.TestCase):
         }).encode("utf-8")
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        client = LLMClient(LLMConfig(api_key="key", enabled=True))
+        client = LLMClient(LLMConfig(bearer_token="key", enabled=True))
         models = client.list_models()
         self.assertEqual(len(models), 2)
         self.assertEqual(models[0]["id"], "model-1")
@@ -66,9 +72,33 @@ class LLMTests(unittest.TestCase):
             mock_completions_resp
         ]
 
-        client = LLMClient(LLMConfig(api_key="key", enabled=True))
+        client = LLMClient(LLMConfig(bearer_token="key", enabled=True))
         summary = client.summarize_events([{"event": "test"}])
         self.assertEqual(summary, "This is a summary of the activity.")
+
+    def test_private_endpoint_enabled_without_token(self) -> None:
+        client = LLMClient(LLMConfig(endpoint="http://10.20.10.117:8080", enabled=True))
+        self.assertTrue(client.is_enabled())
+
+    def test_public_endpoint_disabled_even_with_token(self) -> None:
+        client = LLMClient(
+            LLMConfig(
+                endpoint="https://example.com/v1",
+                bearer_token="not-used",
+                enabled=True,
+            )
+        )
+        self.assertFalse(client.is_enabled())
+
+    def test_public_endpoint_models_are_not_loaded(self) -> None:
+        client = LLMClient(
+            LLMConfig(
+                endpoint="https://example.com/v1",
+                bearer_token="not-used",
+                enabled=True,
+            )
+        )
+        self.assertEqual(client.list_models(), [])
 
     @patch("honeypot_ai.llm.LLMClient.summarize_events")
     @patch("honeypot_ai.llm.LLMClient.is_enabled")

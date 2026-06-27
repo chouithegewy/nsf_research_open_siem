@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RealtimeIngestTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._env_patch = patch.dict("os.environ", {"LLM_ENABLED": "false"})
+        self._env_patch.start()
+        self.addCleanup(self._env_patch.stop)
+
     def test_stream_once_tails_raw_events_without_duplicates(self) -> None:
         first, second = (ROOT / "sample_logs" / "honeypot.ndjson").read_text(encoding="utf-8").splitlines()[:2]
 
@@ -81,7 +86,9 @@ class RealtimeIngestTests(unittest.TestCase):
         self.assertEqual(result.raw_lines, 1)
         self.assertEqual(result.parsed_events, 1)
         self.assertEqual(result.alert_events, 1)
-        self.assertIn('<meta http-equiv="refresh" content="5">', html)
+        self.assertNotIn('http-equiv="refresh"', html)
+        self.assertIn('data-refresh-seconds="5"', html)
+        self.assertIn("refreshDashboardInBackground", html)
         self.assertIn("High confidence", html)
 
     def test_wazuh_stream_cli_once(self) -> None:
